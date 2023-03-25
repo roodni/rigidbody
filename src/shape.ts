@@ -1,72 +1,10 @@
-export class Vec2 {
-  x: number;
-  y: number;
-
-  constructor(x: number, y: number) {
-    this.x = x;
-    this.y = y;
-  }
-
-  dot(v: Vec2) {
-    return this.x*v.x +this.y*v.y;
-  }
-
-  cross(v: Vec2) {
-    return this.x*v.y - this.y*v.x;
-  }
-
-  times(a: number) {
-    return new Vec2(this.x*a, this.y*a);
-  }
-
-  add(v: Vec2) {
-    return new Vec2(this.x +v.x, this.y +v.y);
-  }
-
-  // this -> dest
-  to(dest: Vec2) {
-    return dest.add(this.times(-1));
-  }
-
-  rot270() {
-    return new Vec2(this.y, -this.x)
-  }
-
-  normalize() {
-    const l = Math.sqrt(this.x**2 + this.y**2);
-    return new Vec2(this.x/l, this.y/l);
-  }
-}
-
-export class Mat2 {
-  // [a b]
-  // [c d]
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-
-  constructor(a: number, b: number, c: number, d: number) {
-    this.a = a; this.b = b;
-    this.c = c; this.d = d;
-  }
-
-  mulvec(v: Vec2) {
-    return new Vec2(this.a*v.x +this.b*v.y, this.c*v.x +this.d*v.y);
-  }
-
-  static rotate(t: number) {
-    const c = Math.cos(t);
-    const s = Math.sin(t);
-    return new Mat2(c, -s, s, c);
-  }
-}
+import {Vec2, Mat2} from './utils'
 
 export class Polygon {
-  vs: Vec2[]; // 正方向の回り
+  vertices: Vec2[]; // 時計回り
   axes: Vec2[];
   constructor(vs: Vec2[]) {
-    this.vs = vs;
+    this.vertices = vs;
     this.axes = [];
     for (let i = 0; i < vs.length; i++) {
       const v1 = vs[i];
@@ -76,10 +14,15 @@ export class Polygon {
     }
   }
 
+  /** 頂点を取得する (ラップアラウンドする) */
+  vertex(index: number) {
+    return this.vertices[index % this.vertices.length];
+  }
+
   projection(axis: Vec2): [number, number] {
     let min = Infinity;
     let max = -Infinity;
-    for (const v of this.vs) {
+    for (const v of this.vertices) {
       const p = axis.dot(v);
       min = Math.min(min, p);
       max = Math.max(max, p);
@@ -89,25 +32,39 @@ export class Polygon {
 
   static regular(n: number, center: Vec2, radius: number, rot=0) {
     const l: Vec2[] = [];
-    const base = new Vec2(radius, 0);
+    const base = Vec2.c(radius, 0);
     for (let i = 0; i < n; i++) {
        const v = Mat2.rotate(rot + Math.PI*2*i/n).mulvec(base).add(center);
        l.push(v);
     }
     return new Polygon(l);
   }
+
+  /** `v1`から`v2`への壁を作る (時計回り) */
+  static wall(v1: Vec2, v2: Vec2, width: number) {
+    const perp = v1.to(v2).normalize().rot270().times(-width);
+    const v3 = v2.add(perp);
+    const v4 = v1.add(perp);
+    return new Polygon([v1, v2, v3, v4]);
+  }
 }
 
 export class Collision {
-  normal: Vec2;
+  normal: Vec2; // 図形1から図形2への方向の衝突法線
   depth: number;
-  points1: Vec2[];
-  points2: Vec2[];
-  constructor(normal: Vec2, depth: number, points1: Vec2[], points2: Vec2[]) {
+  points: [Vec2, Vec2][];
+  constructor(normal: Vec2, depth: number, points: [Vec2, Vec2][]) {
     this.normal = normal;
     this.depth = depth;
-    this.points1 = points1;
-    this.points2 = points2
+    this.points = points;
+  }
+
+  reverse() {
+    this.normal = this.normal.reverse();
+    for (let i = 0; i < this.points.length; i++) {
+      const [p1, p2] = this.points[i];
+      this.points[i] = [p2, p1];
+    }
   }
 
   static polygon_polygon(poly1: Polygon, poly2: Polygon) {
@@ -152,46 +109,49 @@ export class Collision {
     }
     const {depth, axisI} = se;
     const normal = poly1.axes[axisI];
-    const edgePerpPos = poly1.vs[axisI].dot(normal);  // 法線に沿った辺の位置
+    const edgePerpPos = poly1.vertex(axisI).dot(normal);  // 法線に沿った辺の位置
     // 以下、poly1は衝突軸の元になったポリゴン、poly2はもう一方のポリゴン
 
     // もう一方のポリゴンから頂点をめり込みが大きい順に1つまたは2つ持ってくる
-    const vs2 = poly2.vs.map((v) => {
+    const vs2 = poly2.vertices.map((v) => {
       const p = v.dot(normal);
       return {p, v};
     });
     vs2.sort((a, b) => a.p - b.p);
 
     // 衝突点を算出する
-    const points1 = [];
-    const points2 = [];
+    const points: [Vec2, Vec2][] = [];
     if (edgePerpPos < vs2[1].p) {
       // 1点衝突
-      points1.push(vs2[0].v.add(normal.times(depth)))
-      points2.push(vs2[0].v);
+      points.push([
+        vs2[0].v.add(normal.times(depth)),
+        vs2[0].v
+      ]);
     } else {
       // 2点衝突
       const edge = normal.rot270();
       // 衝突候補点を接触面に沿った位置で並べて、内側の2つを取り出す
       const paraPoss = [
-        poly1.vs[axisI],
-        poly1.vs[(axisI + 1) % poly1.vs.length],
+        poly1.vertex(axisI),
+        poly1.vertex(axisI + 1),
         vs2[0].v,
         vs2[1].v,
       ].map((v) => edge.dot(v));
       paraPoss.sort((a, b) => a - b);
       for (const paraPos of [paraPoss[1], paraPoss[2]]) {
         const v = edge.times(paraPos);
-        points1.push(normal.times(edgePerpPos).add(v));
-        points2.push(normal.times(edgePerpPos -depth).add(v));
+        points.push([
+          normal.times(edgePerpPos).add(v),
+          normal.times(edgePerpPos -depth).add(v)
+        ]);
       }
     }
 
     // おわり
+    const col = new Collision(normal, depth, points);
     if (reversed) {
-      return new Collision(normal.times(-1), depth, points2, points1);
-    } else {
-      return new Collision(normal, depth, points1, points2);
+      col.reverse();
     }
+    return col;
   }
 }
