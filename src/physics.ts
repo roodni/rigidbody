@@ -154,7 +154,7 @@ class Contact {
     this.invMassN = body1.invMass + body2.invMass
       + body1.invInertia * r1.cross(normal)**2
       + body2.invInertia * r2.cross(normal)**2;
-    this.invMassT = body2.invMass + body2.invMass
+    this.invMassT = body1.invMass + body2.invMass
       + body1.invInertia * r1.cross(tangent)**2
       + body2.invInertia * r2.cross(tangent)**2;
     this.invMassNT =
