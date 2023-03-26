@@ -38,16 +38,21 @@ const sketch = (p: p5) => {
 
     // 壁の追加
     const m = 0.1;
-    const lb = Vec2.c(m, worldH - m);
-    const rb = Vec2.c(worldW - m, worldH - m);
-    const rt = Vec2.c(worldW - m, m);
-    const lt = Vec2.c(m, m);
+    const l = m;
+    const r = worldW - m;
+    const t = -worldW;
+    const b = worldH * 2;
     [
-      Polygon.wall(lb, rb, m),
-      Polygon.wall(rb, rt, m),
-      Polygon.wall(rt, lt, m),
-      Polygon.wall(lt, lb, m)
-    ].forEach((shape) => {
+      Polygon.wall(Vec2.c(worldW/4, worldH/2), Vec2.c(worldW/4*3, worldH/2), m),
+      Polygon.wall(Vec2.c(0, worldH -m), Vec2.c(worldW/5*2, worldH -m), m),
+      Polygon.wall(Vec2.c(worldW/5*3, worldH -m), Vec2.c(worldW, worldH -m), m),
+
+      // Polygon.wall(Vec2.c(r, m), Vec2.c(l, m), m),
+      // Polygon.wall(Vec2.c(l, worldH - m), Vec2.c(r, worldH - m), m),
+
+      Polygon.wall(Vec2.c(r, b), Vec2.c(r, t), m),
+      Polygon.wall(Vec2.c(l, t), Vec2.c(l, b), m)
+    ].forEach((shape, i) => {
       const b = RigidBody.from_polygon(shape);
       b.freeze();
       world.addBody(b);
@@ -63,7 +68,7 @@ const sketch = (p: p5) => {
       return a + Math.random() * (b - a);
     }
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
       const radius = rand(0.1, 0.2);
       const poly = Polygon.regular(
         randInt(3, 6),
@@ -88,8 +93,13 @@ const sketch = (p: p5) => {
     }
 
     p.background(0);
-    const loop = 20;
+    const loop = 5;
     for (let i = 0; i < loop; i++) {
+      for (const b of world.bodies) {
+        if (b.pos.y > worldH * 1.5) {
+          b.pos = Vec2.c(b.pos.x, b.pos.y - worldH * 1.6)
+        }
+      }
       world.step(1/60 / loop);
     }
 

@@ -1,15 +1,15 @@
 import {Vec2, Mat2} from './utils'
 import {Polygon, Collision} from './shape';
 
-const EPS = 0.0001
-
 export class RigidBody {
   static idPool = 0;
 
   id: number;
   shape: Polygon;
   mass: number;
+  invMass: number;
   inertia: number;
+  invInertia: number;
   frozen = false;
   pos = Vec2.ZERO;
   vel = Vec2.ZERO;
@@ -17,36 +17,59 @@ export class RigidBody {
   angle = 0;
   avel = 0;
   aacc = 0;
-  restitution = 0.5;
+  restitution = 0.1;
+  friction = 0.3;
 
   constructor (shape: Polygon, mass: number, inertia: number) {
     this.id = RigidBody.idPool++;
     this.shape = shape;
     this.mass = mass;
+    this.invMass = 1 / mass;
     this.inertia = inertia;
+    this.invInertia = 1 / inertia;
   }
 
   freeze() {
     this.frozen = true;
+    this.invMass = 0;
+    this.invInertia = 0;
   }
   unfreeze() {
     this.frozen = false;
+    this.invMass = 1 / this.mass;
+    this.invInertia = 1 / this.invInertia;
   }
 
-  addForce(point: Vec2, force: Vec2) {
+  addForceLocal(r: Vec2, force: Vec2) {
     if (this.frozen) {
       return;
     }
+    this.acc = this.acc.add(force.times(this.invMass));
+    this.aacc += r.cross(force) * this.invInertia;
+  }
+  addForce(point: Vec2, force: Vec2) {
     const r = this.pos.to(point);
-    const torque = r.cross(force);
-    this.acc = this.acc.add(force.times(1 / this.mass));
-    this.aacc += torque / this.inertia;
+    this.addForceLocal(r, force);
+  }
+  addImpulseLocal(r: Vec2, impulse: Vec2) {
+    if (this.frozen) {
+      return;
+    }
+    this.vel = this.vel.add(impulse.times(this.invMass));
+    this.avel += r.cross(impulse) * this.invInertia;
+  }
+  addImpulse(point: Vec2, impulse: Vec2) {
+    const r = this.pos.to(point);
+    this.addImpulseLocal(r, impulse);
   }
 
-  velAt(point: Vec2) {
-    const r = this.pos.to(point);
+  velAtLocal(r: Vec2) {
     const rotVel = r.rot90().times(this.avel);
     return this.vel.add(rotVel);
+  }
+  velAt(point: Vec2) {
+    const r = this.pos.to(point);
+    return this.velAtLocal(r);
   }
 
   movedShape() {
@@ -98,6 +121,96 @@ export class RigidBody {
   }
 }
 
+class Contact {
+  body1: RigidBody;
+  body2: RigidBody;
+  normal: Vec2;
+  r1: Vec2;
+  r2: Vec2;
+  impulse: Vec2;
+  goalVel : number;
+
+  invMassN: number;
+  invMassT: number;
+  invMassNT: number;
+
+  constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number) {
+    this.body1 = body1;
+    this.body2 = body2;
+    const normal = this.normal = collision.normal;
+    const tangent = normal.rot90();
+    const [point1, point2] = collision.points[pointi];
+    const r1 = this.r1 = body1.pos.to(point1);
+    const r2 = this.r2 = body2.pos.to(point2);
+    this.impulse = Vec2.ZERO;
+    // 目標となる法線方向の相対速度の算出
+    const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1));
+    const restitution = body1.restitution * body2.restitution;
+    const velReaction = -restitution * normal.dot(vel12);
+    const slop = 0.001; // 1mmの貫通を残す
+    const velError = Math.min(collision.depth - slop, 0.01) / dt;
+    this.goalVel = Math.max(velReaction, velError, 0);
+    // 事前計算
+    this.invMassN = body1.invMass + body2.invMass
+      + body1.invInertia * r1.cross(normal)**2
+      + body2.invInertia * r2.cross(normal)**2;
+    this.invMassT = body2.invMass + body2.invMass
+      + body1.invInertia * r1.cross(tangent)**2
+      + body2.invInertia * r2.cross(tangent)**2;
+    this.invMassNT =
+        body1.invInertia * r1.cross(normal) * r1.cross(tangent)
+      + body2.invInertia * r2.cross(normal) * r2.cross(tangent);
+  }
+
+  solve() {
+    const r1 = this.r1;
+    const r2 = this.r2;
+    const normal = this.normal;
+    const tangent = normal.rot90();
+    const invMassN = this.invMassN;
+    const invMassT = this.invMassT;
+    const invMassNT = this.invMassNT;
+
+    // 前回与えた撃力を打ち消す
+    this.body1.addImpulseLocal(r1, this.impulse);
+    this.body2.addImpulseLocal(r2, this.impulse.reverse());
+
+    const vel12 = this.body2.velAtLocal(r2).sub(this.body1.velAtLocal(r1));
+    const velDiff = this.goalVel - normal.dot(vel12);
+
+    if (velDiff <= 0) {
+      // 目標の速度を達成している場合は何もしない
+      return;
+    }
+
+    // 摩擦
+    let impulseT = -(invMassN*tangent.dot(vel12) +invMassNT*velDiff) / (invMassT*invMassN -invMassNT**2);
+    // 垂直抗力
+    let impulseN = (velDiff -invMassNT*impulseT) / invMassN;
+
+    // 摩擦係数
+    const friction = this.body1.friction * this.body2.friction;
+
+    // 静止が可能かどうか判断
+    if (Math.abs(impulseT) > friction * impulseN) {
+      // 動摩擦
+      const sign = Math.sign(impulseT);
+      const invMass = invMassN +sign*friction*invMassNT;
+      if (invMass <= 0) {
+        // 衝突なし (この分岐、本当に踏むことあるのか？)
+        console.log(sign, invMassNT);
+        return;
+      }
+      impulseN = velDiff / invMass;
+      impulseT = sign * friction * impulseN;
+    }
+
+    this.impulse = tangent.times(impulseT).add(normal.times(impulseN));
+    this.body1.addImpulseLocal(r1, this.impulse.reverse());
+    this.body2.addImpulseLocal(r2, this.impulse);
+  }
+}
+
 export class World {
   gravity = Vec2.c(0, 9.8);
   bodies: RigidBody[] = [];
@@ -107,7 +220,8 @@ export class World {
   }
 
   step(dt: number) {
-    // ペナルティ
+    // 衝突検出
+    const constraints: Contact[] = [];
     const shapes = this.bodies.map((b) => b.movedShape());
     for (let i = 0; i < this.bodies.length; i++) {
       const body1 = this.bodies[i];
@@ -121,17 +235,19 @@ export class World {
         if (col === undefined)
           continue;
 
-        for (const [p1, p2] of col.points) {
-          const v12 = body2.velAt(p2).sub(body1.velAt(p1));
-          const perpV12 = col.normal.dot(v12);
-
-          const k = 50.0; // ばね定数
-          const d = 0.5;  // ダンパ
-          const force = col.normal.times(k*col.depth -d*perpV12);
-
-          body1.addForce(p1, force.reverse());
-          body2.addForce(p2, force);
+        for (let i = 0; i < col.points.length; i++) {
+          constraints.push(
+            new Contact(dt, body1, body2, col, i)
+          );
         }
+      }
+    }
+
+    // 衝突応答
+    const loop = 10;
+    for (let i = 0; i < loop; i++) {
+      for (const cnst of constraints) {
+        cnst.solve();
       }
     }
 
