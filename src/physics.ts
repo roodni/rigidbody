@@ -17,8 +17,8 @@ export class RigidBody {
   angle = 0;
   avel = 0;
   aacc = 0;
-  restitution = 0.2;
-  friction = 0.5;
+  restitution = 0.5;
+  friction = 0.3;
 
   constructor (shape: Polygon, mass: number, inertia: number) {
     this.id = RigidBody.idPool++;
@@ -149,13 +149,13 @@ export class Contact {
     const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
     let restitution = body1.restitution * body2.restitution;
     // 相対速度が十分小さいとき反発係数をゼロにする
-    if (Math.abs(vel12) < gravity * dt * restitution * 5) {
+    if (Math.abs(vel12) < gravity * dt * restitution * 10) {
       restitution = 0;
     }
     const velReaction = -restitution * vel12;
     const slop = gravity * dt * dt * 3;
     const velError = Math.min(collision.depth - slop, slop) / dt;
-    this.goalVel = Math.max(velReaction, velError, 0);
+    this.goalVel = Math.max(velReaction, velError);
     // 事前計算
     this.invMassN = body1.invMass + body2.invMass
       + body1.invInertia * r1.cross(normal)**2

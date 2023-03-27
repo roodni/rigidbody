@@ -85,3 +85,12 @@ export class Mat2 {
     return new Mat2(c, -s, s, c);
   }
 }
+
+export function randInt(a: number, b: number) {
+  const n = b - a + 1;
+  const r = Math.floor(Math.random() * n);
+  return a + r;
+}
+export function rand(a: number, b: number) {
+  return a + Math.random() * (b - a);
+}
