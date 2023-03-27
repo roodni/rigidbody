@@ -1,7 +1,8 @@
 import p5 from 'p5';
-import {Vec2} from './utils';
-import {Polygon, Collision} from './shape';
-import {RigidBody, World} from './physics';
+import { Vec2 } from './utils';
+import { Polygon } from './shape';
+import { RigidBody, World } from './physics';
+import { Draw } from './draw';
 
 const sketch = (p: p5) => {
   const canvasW = 500;
@@ -9,29 +10,8 @@ const sketch = (p: p5) => {
   const worldW = 2.0;
   const worldH = worldW * canvasH / canvasW;
 
-  function vec_to_cvs(v: Vec2): [number, number] {
-    return [
-      v.x / worldW * canvasW,
-      v.y / worldH * canvasH
-    ];
-  };
-
-  function drawPolygon(poly: Polygon) {
-    p.beginShape();
-    for (const v of poly.vertices) {
-      p.vertex(...vec_to_cvs(v))
-    }
-    p.endShape(p.CLOSE);
-  }
-  function drawBody(body: RigidBody) {
-    p.strokeWeight(3);
-    p.stroke(body.frozen ? [128, 128, 255] : [255]);
-    p.noFill();
-    drawPolygon(body.movedShape());
-    p.circle(...vec_to_cvs(body.pos), 5);
-  }
-
   const world = new World();
+  const drawer = new Draw(p, canvasW / worldW);
 
   p.setup = () => {
     p.createCanvas(canvasW, canvasH);
@@ -68,8 +48,8 @@ const sketch = (p: p5) => {
       return a + Math.random() * (b - a);
     }
 
-    for (let i = 0; i < 20; i++) {
-      const radius = rand(0.1, 0.2);
+    for (let i = 0; i < 10; i++) {
+      const radius = rand(0.1, 0.15);
       const poly = Polygon.regular(
         randInt(3, 6),
         Vec2.c(
@@ -92,7 +72,6 @@ const sketch = (p: p5) => {
       }
     }
 
-    p.background(0);
     const loop = 1;
     for (let i = 0; i < loop; i++) {
       for (const b of world.bodies) {
@@ -103,9 +82,9 @@ const sketch = (p: p5) => {
       world.step(1/60 / loop);
     }
 
-    for (const b of world.bodies) {
-      drawBody(b);
-    }
+    p.colorMode(p.RGB, 255);
+    p.background(0);
+    drawer.drawWorld(world);
   };
 };
 

@@ -56,6 +56,10 @@ export class Vec2 {
     const l = Math.sqrt(this.normSq());
     return Vec2.c(this.x/l, this.y/l);
   }
+
+  toTuple(): [number, number] {
+    return [this.x, this.y];
+  }
 }
 
 export class Mat2 {

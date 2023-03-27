@@ -17,8 +17,8 @@ export class RigidBody {
   angle = 0;
   avel = 0;
   aacc = 0;
-  restitution = 0.8;
-  friction = 0.3;
+  restitution = 0.2;
+  friction = 0.5;
 
   constructor (shape: Polygon, mass: number, inertia: number) {
     this.id = RigidBody.idPool++;
@@ -121,7 +121,7 @@ export class RigidBody {
   }
 }
 
-class Contact {
+export class Contact {
   body1: RigidBody;
   body2: RigidBody;
   normal: Vec2;
@@ -133,6 +133,8 @@ class Contact {
   invMassN: number;
   invMassT: number;
   invMassNT: number;
+
+  isFrictionStatic: boolean;
 
   constructor(dt: number, gravity: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number) {
     this.body1 = body1;
@@ -164,6 +166,8 @@ class Contact {
     this.invMassNT =
         body1.invInertia * r1.cross(normal) * r1.cross(tangent)
       + body2.invInertia * r2.cross(normal) * r2.cross(tangent);
+
+    this.isFrictionStatic = true;
   }
 
   solve() {
@@ -196,8 +200,10 @@ class Contact {
     const friction = this.body1.friction * this.body2.friction;
 
     // 静止が可能かどうか判断
+    this.isFrictionStatic = true;
     if (Math.abs(impulseT) > friction * impulseN) {
       // 動摩擦
+      this.isFrictionStatic = false;
       const sign = Math.sign(impulseT);
       const invMass = invMassN +sign*friction*invMassNT;
       if (invMass <= 0) {
@@ -218,6 +224,7 @@ class Contact {
 export class World {
   gravity = Vec2.c(0, 9.8);
   bodies: RigidBody[] = [];
+  constraints: Contact[] = [];
 
   addBody(body: RigidBody) {
     this.bodies.push(body);
@@ -241,7 +248,7 @@ export class World {
 
     // 衝突検出
     const gNorm = Math.sqrt(this.gravity.normSq())
-    const constraints: Contact[] = [];
+    this.constraints = [];
     const shapes = this.bodies.map((b) => b.movedShape());
     for (let i = 0; i < this.bodies.length; i++) {
       const body1 = this.bodies[i];
@@ -256,7 +263,7 @@ export class World {
           continue;
 
         for (let i = 0; i < col.points.length; i++) {
-          constraints.push(
+          this.constraints.push(
             new Contact(dt, gNorm, body1, body2, col, i)
           );
         }
@@ -264,9 +271,9 @@ export class World {
     }
 
     // 衝突応答
-    const loop = 50;
+    const loop = 100;
     for (let i = 0; i < loop; i++) {
-      for (const cnst of constraints) {
+      for (const cnst of this.constraints) {
         cnst.solve();
       }
     }
