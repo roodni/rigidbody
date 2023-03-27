@@ -93,7 +93,7 @@ const sketch = (p: p5) => {
     }
 
     p.background(0);
-    const loop = 5;
+    const loop = 1;
     for (let i = 0; i < loop; i++) {
       for (const b of world.bodies) {
         if (b.pos.y > worldH * 1.5) {
