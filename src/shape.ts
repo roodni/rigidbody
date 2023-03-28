@@ -30,6 +30,7 @@ export class Polygon {
     return [min, max];
   }
 
+  /** 正多角形 */
   static regular(n: number, center: Vec2, radius: number, rot=0) {
     const l: Vec2[] = [];
     const base = Vec2.c(radius, 0);
@@ -46,6 +47,17 @@ export class Polygon {
     const v3 = v2.add(perp);
     const v4 = v1.add(perp);
     return new Polygon([v1, v2, v3, v4]);
+  }
+
+  static rect(x1: number, y1: number, x2: number, y2: number) {
+    [x1, x2] = [Math.min(x1, x2), Math.max(x1, x2)];
+    [y1, y2] = [Math.min(y1, y2), Math.max(y1, y2)];
+    return new Polygon([
+      Vec2.c(x1, y1),
+      Vec2.c(x2, y1),
+      Vec2.c(x2, y2),
+      Vec2.c(x1, y2)
+    ]);
   }
 }
 

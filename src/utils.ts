@@ -51,9 +51,12 @@ export class Vec2 {
   normSq() {
     return this.x**2 +this.y**2;
   }
+  norm() {
+    return Math.sqrt(this.normSq());
+  }
 
   normalize() {
-    const l = Math.sqrt(this.normSq());
+    const l = this.norm();
     return Vec2.c(this.x/l, this.y/l);
   }
 

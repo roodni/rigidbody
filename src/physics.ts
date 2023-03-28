@@ -5,7 +5,7 @@ export class RigidBody {
   static idPool = 0;
 
   id: number;
-  shape: Polygon;
+  shape: Polygon | undefined;
   mass: number;
   invMass: number;
   inertia: number;
@@ -20,19 +20,24 @@ export class RigidBody {
   restitution = 0.5;
   friction = 0.3;
 
-  constructor (shape: Polygon, mass: number, inertia: number) {
+  noCollide: Set<number>; // 衝突を無視する剛体一覧
+
+  constructor(shape: Polygon | undefined, mass: number, inertia: number) {
     this.id = RigidBody.idPool++;
     this.shape = shape;
     this.mass = mass;
     this.invMass = 1 / mass;
     this.inertia = inertia;
     this.invInertia = 1 / inertia;
+    this.noCollide = new Set();
   }
 
   freeze() {
     this.frozen = true;
     this.invMass = 0;
     this.invInertia = 0;
+    this.vel = Vec2.ZERO;
+    this.acc = Vec2.ZERO;
   }
   unfreeze() {
     this.frozen = false;
@@ -73,6 +78,9 @@ export class RigidBody {
   }
 
   movedShape() {
+    if (!this.shape) {
+      return undefined;
+    }
     const rotMat = Mat2.rotate(this.angle);
     const vl = this.shape.vertices.map(
       (v) => rotMat.mulvec(v).add(this.pos)
@@ -119,9 +127,42 @@ export class RigidBody {
     body.pos = center;
     return body;
   }
+
+  static ether() {
+    const body = new RigidBody(undefined, 1.0, 1.0);
+    body.freeze();
+    return body;
+  }
 }
 
-export class Contact {
+
+export type DistanceJoint = {
+  body1: RigidBody;
+  body2: RigidBody;
+  r1: Vec2;
+  r2: Vec2;
+  max: number;
+  noCollide: boolean;
+};
+export const DistanceJoint = {
+  pin(body1: RigidBody, body2: RigidBody, point: Vec2, noCollide=true): DistanceJoint {
+    const rot1 = Mat2.rotate(-body1.angle);
+    const rot2 = Mat2.rotate(-body2.angle);
+    return {
+      body1, body2,
+      r1: rot1.mulvec(body1.pos.to(point)),
+      r2: rot2.mulvec(body2.pos.to(point)),
+      max: 0,
+      noCollide
+    };
+  }
+};
+
+interface Constraint {
+  solve(): void;
+}
+
+export class Contact implements Constraint {
   body1: RigidBody;
   body2: RigidBody;
   normal: Vec2;
@@ -221,13 +262,85 @@ export class Contact {
   }
 }
 
+class DistanceConstraint implements Constraint {
+  joint: DistanceJoint;
+  r1: Vec2;
+  r2: Vec2;
+  goalVel?: Vec2;
+
+  invMassX: number;
+  invMassY: number;
+  invMassXY: number;
+
+  constructor(dt: number, joint: DistanceJoint) {
+    this.joint = joint;
+    const b1 = joint.body1;
+    const b2 = joint.body2;
+    const rot1 = Mat2.rotate(b1.angle);
+    const rot2 = Mat2.rotate(b2.angle);
+
+    const p1 = rot1.mulvec(joint.r1).add(b1.pos);
+    const p2 = rot2.mulvec(joint.r2).add(b2.pos);
+    const p12 = p1.to(p2);
+    const center = p1.add(p12.times(0.5));
+    const r1 = this.r1 = b1.pos.to(center);
+    const r2 = this.r2 = b2.pos.to(center);
+
+    const d12 = p12.norm();
+    if (d12 > joint.max) {
+      const vel = -(d12 - joint.max) / dt;
+      this.goalVel = p12.times(vel);
+    }
+
+    this.invMassX = b1.invMass +b2.invMass +b1.invInertia*r1.y**2 +b2.invInertia*r2.y**2;
+    this.invMassY = b1.invMass +b2.invMass +b1.invInertia*r1.x**2 +b2.invInertia*r2.x**2;
+    this.invMassXY = -b1.invInertia*r1.x*r1.y -b2.invInertia*r2.x*r2.y;
+  }
+
+  solve() {
+    if (!this.goalVel) {
+      return;
+    }
+
+    const vel1 = this.joint.body1.velAtLocal(this.r1);
+    const vel2 = this.joint.body2.velAtLocal(this.r2);
+    const vel12 = vel2.sub(vel1);
+    const velDiff = this.goalVel.sub(vel12);
+
+    const ix = Vec2.c(this.invMassY, -this.invMassXY).dot(velDiff);
+    const iy = Vec2.c(-this.invMassXY, this.invMassX).dot(velDiff);
+    const impulse = Vec2.c(ix, iy).times(1/(this.invMassX*this.invMassY -this.invMassXY**2));
+    this.joint.body1.addImpulseLocal(this.r1, impulse.reverse());
+    this.joint.body2.addImpulseLocal(this.r2, impulse);
+  }
+}
+
+
 export class World {
   gravity = Vec2.c(0, 9.8);
+  ether: RigidBody;
   bodies: RigidBody[] = [];
-  constraints: Contact[] = [];
+  joints: DistanceJoint[] = [];
+  contacts: Contact[] = [];
+
+  constructor() {
+    this.ether = RigidBody.ether();
+    this.addBody(this.ether);
+  }
 
   addBody(body: RigidBody) {
     this.bodies.push(body);
+  }
+
+  addJoint(joint: DistanceJoint) {
+    this.joints.push(joint);
+    // 接続したオブジェクト同士の当たり判定を消す
+    if (joint.noCollide) {
+      // ジョイントの削除を可能にするには
+      // noCollideの持ち方にもっと工夫が必要そう (参照カウントとか?)
+      joint.body1.noCollide.add(joint.body2.id);
+      joint.body2.noCollide.add(joint.body1.id);
+    }
   }
 
   step(dt: number) {
@@ -246,26 +359,40 @@ export class World {
       b.aacc = 0;
     }
 
+    const constraints = [];
+
+    // ジョイント
+    for (const joint of this.joints) {
+      // ジョイントに拘束を生成するメソッドを用意した方がいい
+      // ジョイントの種類を増やすことがあれば直す
+      const cnst = new DistanceConstraint(dt, joint);
+      if (cnst.goalVel) {
+        constraints.push(cnst);
+      }
+    }
+
     // 衝突検出
+    this.contacts = [];
     const gNorm = Math.sqrt(this.gravity.normSq())
-    this.constraints = [];
     const shapes = this.bodies.map((b) => b.movedShape());
     for (let i = 0; i < this.bodies.length; i++) {
       const body1 = this.bodies[i];
       const shape1 = shapes[i];
+      if (!shape1) { continue; }
       for (let j = i + 1; j < this.bodies.length; j++) {
         const body2 = this.bodies[j];
         const shape2 = shapes[j];
-        if (body1.frozen && body2.frozen)
-          continue;
+        if (!shape2) { continue; }
+        if (body1.frozen && body2.frozen) { continue; }
+        if (body1.noCollide.has(body2.id)) { continue; }
+
         const col = Collision.polygon_polygon(shape1, shape2);
-        if (col === undefined)
-          continue;
+        if (col === undefined) { continue; }
 
         for (let i = 0; i < col.points.length; i++) {
-          this.constraints.push(
-            new Contact(dt, gNorm, body1, body2, col, i)
-          );
+          const contact = new Contact(dt, gNorm, body1, body2, col, i);
+          constraints.push(contact);
+          this.contacts.push(contact);
         }
       }
     }
@@ -273,9 +400,10 @@ export class World {
     // 衝突応答
     const loop = 100;
     for (let i = 0; i < loop; i++) {
-      for (const cnst of this.constraints) {
+      for (const cnst of constraints) {
         cnst.solve();
       }
     }
   }
+
 }

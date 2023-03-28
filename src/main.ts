@@ -5,8 +5,10 @@ const sketch = (p: p5) => {
   const canvasW = 500;
   const canvasH = 500;
 
-  const scene = new scenes.LoopWorldScene(canvasW);
-  // const scene = new scenes.MySchene(canvasW);
+  // const scene = new scenes.LoopScene1(canvasW);
+  const scene = new scenes.LoopScene2(canvasW);
+  // const scene = new scenes.BodiesSchene(canvasW);
+  // const scene = new scenes.PendulumScene(canvasW);
 
   p.setup = () => {
     p.createCanvas(canvasW, canvasH);
