@@ -3,15 +3,66 @@ import * as utils from './utils';
 import { Vec2 } from './utils';
 import { PinJoint, RigidBody, World } from './physics';
 import { Draw } from './draw';
-import { Polygon } from './shape';
+import { Polygon, Collision } from './shape';
 
 export abstract class Scene {
-  abstract init(p: p5): void;
+  abstract init(): void;
   abstract update(p: p5): void;
   mousePressed(p: p5) {}
   mouseReleased(p: p5) {}
 }
 
+// 当たり判定確認
+export class CollisionScene extends Scene {
+  poly1: Polygon;
+  angle: number;
+  drawer: Draw;
+
+  constructor() {
+    super();
+    this.poly1 = Polygon.regular(5, Vec2.c(150, 150), 120);
+    this.angle = 0;
+    this.drawer = new Draw(1.0);
+  }
+
+  init() {}
+  update(p: p5) {
+    if (p.keyIsPressed) {
+      switch (p.key) {
+        case 'a':
+          this.angle -= Math.PI / 180;
+          break;
+        case 'd':
+          this.angle += Math.PI / 180;
+          break;
+      }
+    }
+
+    const poly1 = this.poly1;
+    const poly2 = Polygon.regular(4, Vec2.c(p.mouseX, p.mouseY), 80, this.angle);
+    const col = Collision.polygon_polygon(poly1, poly2);
+
+    p.colorMode(p.RGB, 255);
+    p.background(0);
+    p.noFill();
+    p.strokeWeight(3);
+    p.stroke(col ? 192 : 128);
+
+    this.drawer.drawPolygon(p, poly1);
+    this.drawer.drawPolygon(p, poly2);
+
+    if (col) {
+      p.stroke(255, 0, 0);
+      for (const [p1, p2] of col.points) {
+        p.line(p1.x, p1.y, p2.x, p2.y);
+      }
+    }
+  }
+
+}
+
+
+// 物理演算
 abstract class WorldScene extends Scene {
   world: World;
   meterToPx: number;
@@ -89,7 +140,7 @@ export class BoxedWorldScene extends WorldScene {
     this.margin = m;
   }
 
-  init(p: p5) {
+  init() {
     const m = this.margin;
     const l = m;
     const r = this.worldW - m;
@@ -136,9 +187,9 @@ export class BodiesSchene extends BoxedWorldScene {
     super(canvasW);
   }
 
-  init(p: p5) {
+  init() {
     // this.timestep *= 0.5;
-    super.init(p);
+    super.init();
 
     const m = this.margin;
     const r = this.worldW - m;
@@ -161,8 +212,8 @@ export class PendulumScene extends BoxedWorldScene {
     super(canvasW);
   }
 
-  init(p: p5) {
-    // super.init(p);
+  init() {
+    // super.init();
     const m = this.margin;
     const ww = this.worldW;
     const wh = this.worldH;
@@ -202,7 +253,7 @@ class LoopWorldScene extends WorldScene {
     this.margin = m;
   }
 
-  init(p: p5) {
+  init() {
     const m = this.margin;
     const ww = this.worldW;
     const wh = this.worldH;
@@ -211,6 +262,7 @@ class LoopWorldScene extends WorldScene {
     [
       Polygon.wall(Vec2.c(l, -wh), Vec2.c(l, wh*2), m),
       Polygon.wall(Vec2.c(r, wh*2), Vec2.c(r, -wh), m),
+      Polygon.wall(Vec2.c(r, -wh), Vec2.c(l, -wh), m),
     ].forEach((shape) => {
       const b = RigidBody.from_polygon(shape);
       b.restitution = this.restitution;
@@ -231,8 +283,8 @@ class LoopWorldScene extends WorldScene {
 }
 
 export class LoopScene1 extends LoopWorldScene {
-  init(p: p5) {
-    super.init(p);
+  init() {
+    super.init();
 
     const ww = this.worldW;
     const wh = this.worldH;
@@ -264,8 +316,8 @@ export class LoopScene1 extends LoopWorldScene {
 }
 
 export class LoopScene2 extends LoopWorldScene {
-  init(p: p5) {
-    super.init(p);
+  init() {
+    super.init();
 
     const ww = this.worldW;
     const wh = this.worldH;
