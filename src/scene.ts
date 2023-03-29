@@ -8,17 +8,23 @@ import { Polygon } from './shape';
 export abstract class Scene {
   abstract init(p: p5): void;
   abstract update(p: p5): void;
+  mousePressed(p: p5) {}
+  mouseReleased(p: p5) {}
 }
 
 abstract class WorldScene extends Scene {
   world: World;
+  meterToPx: number;
   drawer: Draw;
   timestep = 1/60;
+
+  startPos = Vec2.ZERO;
 
   constructor(canvasW: number, worldW: number) {
     super();
     this.world = new World();
-    this.drawer = new Draw(canvasW / worldW);
+    this.meterToPx = canvasW / worldW;
+    this.drawer = new Draw(this.meterToPx);
   }
 
   updateWorld() {};
@@ -37,12 +43,41 @@ abstract class WorldScene extends Scene {
     p.colorMode(p.RGB, 255);
     p.background(0);
     this.drawer.drawWorld(p, this.world);
+
+    if (p.mouseIsPressed) {
+      p.colorMode(p.RGB, 255);
+      p.stroke(255);
+      p.strokeWeight(3);
+      p.noFill();
+      const p1 = this.startPos;
+      const p2 = Vec2.c(p.mouseX, p.mouseY);
+      p.rect(p1.x, p1.y, p2.x -p1.x, p2.y -p1.y);
+    }
+  }
+
+  mousePressed(p: p5): void {
+    this.startPos = Vec2.c(p.mouseX, p.mouseY);
+  }
+  mouseReleased(p: p5): void {
+    const p1 = this.startPos.times(1/this.meterToPx);
+    const p2 = Vec2.c(p.mouseX, p.mouseY).times(1/this.meterToPx);
+
+    const w = Math.abs(p1.x -p2.x);
+    const h = Math.abs(p1.y -p2.y);
+
+    if (Math.min(w, h) < 0.05) {
+      return;
+    }
+
+    const poly = Polygon.rect(...p1.toTuple(), ...p2.toTuple());
+    const body = RigidBody.from_polygon(poly);
+    this.world.addBody(body);
   }
 }
 
 
 // 壁で囲まれたシーンのベース
-abstract class BoxedWorldScene extends WorldScene {
+export class BoxedWorldScene extends WorldScene {
   worldW: number;
   worldH: number;
   margin: number;

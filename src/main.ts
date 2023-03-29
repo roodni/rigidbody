@@ -5,8 +5,9 @@ const sketch = (p: p5) => {
   const canvasW = 500;
   const canvasH = 500;
 
+  const scene = new scenes.BoxedWorldScene(canvasW);
   // const scene = new scenes.LoopScene1(canvasW);
-  const scene = new scenes.LoopScene2(canvasW);
+  // const scene = new scenes.LoopScene2(canvasW);
   // const scene = new scenes.BodiesSchene(canvasW);
   // const scene = new scenes.PendulumScene(canvasW);
 
@@ -17,6 +18,13 @@ const sketch = (p: p5) => {
 
   p.draw = () => {
     scene.update(p);
+  };
+
+  p.mousePressed = () => {
+    scene.mousePressed(p);
+  };
+  p.mouseReleased = () => {
+    scene.mouseReleased(p);
   };
 };
 
