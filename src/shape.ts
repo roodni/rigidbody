@@ -1,19 +1,22 @@
 import {Vec2, Mat2} from './utils'
 
+
+
 export abstract class Shape {
   abstract projection(axis: Vec2): [number, number];
   abstract euclidean(angle: number, trans: Vec2): Shape;
 
   // 重心・面積・慣性モーメントを計算する
-  abstract center(): {center: Vec2, area: number, inertia: number};
+  abstract areas(): {center: Vec2, area: number, inertia: number};
 
-  // abstract collide(s: Shape): Collision;
-  // abstract collidePolygon(poly: Polygon): Collision;
+  abstract collide(s2: Shape): Collision | undefined;
+  abstract collidePolygon(p1: Polygon): Collision | undefined;
+  abstract collideCircle(c1: Circle): Collision | undefined;
 }
 
 export class Polygon extends Shape {
   vertices: Vec2[]; // 時計回り
-  axes: Vec2[];
+  axes: Vec2[]; // 法線
   constructor(vs: Vec2[]) {
     super();
     this.vertices = vs;
@@ -28,7 +31,12 @@ export class Polygon extends Shape {
 
   /** 頂点を取得する (ラップアラウンドする) */
   vertex(index: number) {
-    return this.vertices[index % this.vertices.length];
+    if (index === -1) {
+      index = this.vertices.length - 1;
+    } else if (index === this.vertices.length) {
+      index = 0;
+    }
+    return this.vertices[index];
   }
 
   projection(axis: Vec2): [number, number] {
@@ -50,7 +58,7 @@ export class Polygon extends Shape {
     return new Polygon(l);
   }
 
-  center() {
+  areas() {
     const v0 = this.vertex(0);
 
     let subAs = []; // 分割した三角形の面積
@@ -113,7 +121,77 @@ export class Polygon extends Shape {
       Vec2.c(x1, y2)
     ]);
   }
+
+  /**
+   * 辺で分離軸判定
+   * 最も貫通の浅い辺について貫通深度・辺番号を返す
+  */
+  shallowestEdge(shape: Shape) {
+    let minDepth = Infinity;
+    let minAxisI = 0;
+    for (let i = 0; i < this.axes.length; i++) {
+      const axis = this.axes[i];
+      const [l1, r1] = this.projection(axis);
+      const [l2, r2] = shape.projection(axis);
+      const depth = r1 - l2;
+      if (depth < 0 || (r1 -l1) +(r2 -l2) < depth) {
+        return undefined;
+      }
+      if (depth < minDepth) {
+        minDepth = depth;
+        minAxisI = i;
+      }
+    }
+    return {
+      depth: minDepth,
+      axisI: minAxisI
+    };
+  }
+
+  collide(s2: Shape) { return s2.collidePolygon(this); }
+  collidePolygon(p1: Polygon) {
+    return Collision.polygonPolygon(p1, this);
+  }
+  collideCircle(c1: Circle): Collision | undefined {
+    return Collision.polygonCircle(this, c1)?.reverse();
+  }
 }
+
+export class Circle extends Shape {
+  constructor(
+    public center: Vec2,
+    public radius: number
+  ) {
+    super();
+  }
+
+  projection(axis: Vec2): [number, number] {
+    const p = axis.dot(this.center);
+    return [p - this.radius, p + this.radius];
+  }
+  euclidean(angle: number, trans: Vec2) {
+    return new Circle(this.center.add(trans), this.radius);
+  }
+
+  areas() {
+    const area = Math.PI * this.radius**2;
+    const inertia = area * this.radius**2 / 2;
+    return {
+      area, inertia,
+      center: this.center,
+    };
+  }
+
+  collide(s2: Shape) { return s2.collideCircle(this); }
+  collidePolygon(p1: Polygon): Collision | undefined {
+    return Collision.polygonCircle(p1, this);
+  }
+  collideCircle(c1: Circle): Collision | undefined {
+    return Collision.circleCircle(c1, this);
+  }
+
+}
+
 
 export class Collision {
   normal: Vec2; // 図形1から図形2への方向の衝突法線
@@ -125,44 +203,100 @@ export class Collision {
     this.points = points;
   }
 
+  /** 図形1と図形2をin-placeで入れ替える */
   reverse() {
     this.normal = this.normal.reverse();
     for (let i = 0; i < this.points.length; i++) {
       const [p1, p2] = this.points[i];
       this.points[i] = [p2, p1];
     }
+    return this;
   }
 
-  static polygon_polygon(poly1: Polygon, poly2: Polygon) {
-    function shallowestEdge(polyAxis: Polygon, polyOther: Polygon) {
-      // 分離軸判定の片側
-      // 最も貫通の浅い軸について貫通深度・辺番号
-      // 分離軸が存在したら打ち切る
-      let minDepth = Infinity;
-      let minAxisI = 0;
-      for (let i = 0; i < polyAxis.axes.length; i++) {
-        const axis = polyAxis.axes[i];
-        const [l1, r1] = polyAxis.projection(axis);
-        const [l2, r2] = polyOther.projection(axis);
-        const depth = r1 - l2;
-        if (depth < 0 || (r1 -l1) +(r2 -l2) < depth) {
-          return undefined;
-        }
-        if (depth < minDepth) {
-          minDepth = depth;
-          minAxisI = i;
-        }
-      }
-      return {
-        depth: minDepth,
-        axisI: minAxisI
-      };
-    }
+  static polygonCircle(poly1: Polygon, circ2: Circle) {
+    // ポリゴンの各辺について分離軸判定
+    const se = poly1.shallowestEdge(circ2);
+    if (!se) { return undefined; }
 
-    const se1 = shallowestEdge(poly1, poly2);
-    if (se1 === undefined) return undefined;
-    const se2 = shallowestEdge(poly2, poly1);
-    if (se2 === undefined) return undefined;
+    // 円に最も近い頂点を求める
+    let minDistSq = Infinity;
+    let nearestI = 0
+    for (let i = 0; i < poly1.vertices.length; i++) {
+      const v = poly1.vertices[i];
+      const distSq = v.to(circ2.center).normSq();
+      if (minDistSq > distSq) {
+        minDistSq = distSq;
+        nearestI = i;
+      }
+    }
+    const v1 = poly1.vertices[nearestI];
+    const v12 = v1.to(circ2.center);
+    const d12 = Math.sqrt(minDistSq);
+    // 法線を求める
+    let normal1 = undefined;
+    if (d12 > Number.EPSILON) {
+      normal1 = v12.times(1 /  d12);
+    }
+    if (normal1) {
+      // 円に最も近い頂点が射影の端でなければ、その法線は無視
+      const vLeft = poly1.vertex(nearestI - 1);
+      const vRight = poly1.vertex(nearestI + 1)
+      const p1 = normal1.dot(v1);
+      const pL = normal1.dot(vLeft);
+      const pR = normal1.dot(vRight);
+      if (p1 <= pL || p1 <= pR) {
+        normal1 = undefined;
+      }
+    }
+    // 法線が有効であれば分離軸判定
+    if (normal1) {
+      const depth1 = circ2.radius - d12;
+      if (depth1 < 0) {
+        return undefined; // 分離軸だった
+      }
+      if (depth1 < se.depth) {
+        // 最も貫通の浅い軸だった
+        return new Collision(normal1, depth1, [
+          [v1, circ2.center.add(normal1.times(-circ2.radius))]
+        ]);
+      }
+    }
+    // ポリゴンの辺が最も浅い軸だった
+    const normal = poly1.axes[se.axisI];
+    return new Collision(normal, se.depth, [
+      [
+        circ2.center.add(normal.times(se.depth -circ2.radius)),
+        circ2.center.add(normal.times(-circ2.radius))
+      ]
+    ]);
+  }
+
+  static circleCircle(circ1: Circle, circ2: Circle) {
+    const p12 = circ1.center.to(circ2.center);
+    const d12 = p12.norm();
+    const depth = circ1.radius + circ2.radius - d12;
+    if (depth < 0) {
+      return undefined;
+    }
+    let normal;
+    if (d12 < Number.EPSILON) {
+      normal = Vec2.c(1, 0);
+    } else {
+      normal = p12.times(1 / d12);
+    }
+    return new Collision(normal, depth, [
+      [
+        circ1.center.add(normal.times(circ1.radius)),
+        circ2.center.add(normal.times(-circ2.radius))
+      ]
+    ]);
+  }
+
+  static polygonPolygon(poly1: Polygon, poly2: Polygon) {
+    const se1 = poly1.shallowestEdge(poly2);
+    if (!se1) return undefined;
+    const se2 = poly2.shallowestEdge(poly1);
+    if (!se2) return undefined;
 
     let reversed = false;
     let se;

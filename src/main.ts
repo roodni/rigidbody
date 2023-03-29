@@ -3,11 +3,11 @@ import * as scenes from './scene';
 
 const sceneList: (() => scenes.Scene)[] = [
   () => new scenes.LoopScene2(canvasW),
-  () => new scenes.CollisionScene(),
   () => new scenes.LoopScene1(canvasW),
   () => new scenes.BodiesSchene(canvasW),
   () => new scenes.PendulumScene(canvasW),
   () => new scenes.BoxedWorldScene(canvasW),
+  () => new scenes.CollisionScene(),
 ];
 
 const canvasW = 500;

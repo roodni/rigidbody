@@ -1,11 +1,11 @@
 import {Vec2, Mat2} from './utils'
-import {Polygon, Shape, Collision} from './shape';
+import {Shape, Collision} from './shape';
 
 export class RigidBody {
   static idPool = 0;
 
   id: number;
-  shape: Polygon | undefined;
+  shape: Shape | undefined;
   mass: number;
   invMass: number;
   inertia: number;
@@ -22,7 +22,7 @@ export class RigidBody {
 
   noCollide: Set<number>; // 衝突を無視する剛体一覧
 
-  constructor(shape: Polygon | undefined, mass: number, inertia: number) {
+  constructor(shape: Shape | undefined, mass: number, inertia: number) {
     this.id = RigidBody.idPool++;
     this.shape = shape;
     this.mass = mass;
@@ -85,12 +85,12 @@ export class RigidBody {
   }
 
   /** ワールド座標のポリゴンからインスタンスを生成する */
-  static fromShape(shape: Polygon, density = 1.0) {
+  static fromShape(shape: Shape, density = 1.0) {
     const {
       area,
       inertia: areaInertia,
       center
-    } = shape.center();
+    } = shape.areas();
 
     const mass = area * density;
     const inertia = areaInertia * density;
@@ -361,7 +361,7 @@ export class World {
         if (body1.frozen && body2.frozen) { continue; }
         if (body1.noCollide.has(body2.id)) { continue; }
 
-        const col = Collision.polygon_polygon(shape1, shape2);
+        const col = shape1.collide(shape2);
         if (col === undefined) { continue; }
 
         for (let i = 0; i < col.points.length; i++) {

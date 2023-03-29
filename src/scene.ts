@@ -3,7 +3,7 @@ import * as utils from './utils';
 import { Vec2 } from './utils';
 import { PinJoint, RigidBody, World } from './physics';
 import { Draw } from './draw';
-import { Polygon, Collision } from './shape';
+import { Polygon, Collision, Circle, Shape } from './shape';
 
 export abstract class Scene {
   abstract init(): void;
@@ -14,13 +14,17 @@ export abstract class Scene {
 
 // 当たり判定確認
 export class CollisionScene extends Scene {
-  poly1: Polygon;
+  body1: RigidBody;
   angle: number;
   drawer: Draw;
 
   constructor() {
     super();
-    this.poly1 = Polygon.regular(5, Vec2.c(150, 150), 120);
+    this.body1 = RigidBody.fromShape(
+      // Polygon.regular(5, Vec2.c(150, 150), 120)
+      new Circle(Vec2.c(150, 150), 100)
+    );
+
     this.angle = 0;
     this.drawer = new Draw(1.0);
   }
@@ -38,20 +42,24 @@ export class CollisionScene extends Scene {
       }
     }
 
-    const poly1 = this.poly1;
-    const poly2 = Polygon.regular(4, Vec2.c(p.mouseX, p.mouseY), 80, this.angle);
-    const col = Collision.polygon_polygon(poly1, poly2);
+    const body2 = RigidBody.fromShape(
+      Polygon.regular(3, Vec2.ZERO, 80)
+    );
+    body2.pos = Vec2.c(p.mouseX, p.mouseY);
+    body2.angle = this.angle;
+
+    const shape1 = this.body1.movedShape()!;
+    const shape2 = body2.movedShape()!;
+    const col = shape1.collide(shape2);
 
     p.colorMode(p.RGB, 255);
     p.background(0);
-    p.noFill();
-    p.strokeWeight(3);
-    p.stroke(col ? 192 : 128);
 
-    this.drawer.drawPolygon(p, poly1);
-    this.drawer.drawPolygon(p, poly2);
+    this.drawer.drawBody(p, this.body1);
+    this.drawer.drawBody(p, body2);
 
     if (col) {
+      p.colorMode(p.RGB, 255);
       p.stroke(255, 0, 0);
       for (const [p1, p2] of col.points) {
         p.line(p1.x, p1.y, p2.x, p2.y);
@@ -166,17 +174,20 @@ export class BoxedWorldScene extends WorldScene {
 function createBodies(num: number, lt: Vec2, rb: Vec2, [minR, maxR]=[0.1, 0.2]) {
   const bodies = [];
   for (let i = 0; i < num; i++) {
+    const n = utils.randInt(2, 6);
     const radius = utils.rand(minR, maxR);
-    const poly = Polygon.regular(
-      utils.randInt(3, 6),
-      Vec2.c(
-        utils.rand(lt.x + radius, rb.x - radius),
-        utils.rand(lt.y + radius, rb.y - radius)
-      ),
-      radius,
-      utils.rand(0, Math.PI * 2)
+    const pos = Vec2.c(
+      utils.rand(lt.x + radius, rb.x - radius),
+      utils.rand(lt.y + radius, rb.y - radius)
     );
-    bodies.push(RigidBody.fromShape(poly));
+    let shape;
+    if (n <= 2) {
+      shape = new Circle(pos, radius);
+    } else {
+      const angle = utils.randInt(3, 6);
+      shape = Polygon.regular(n, pos, radius, angle);
+    }
+    bodies.push(RigidBody.fromShape(shape));
   }
   return bodies;
 }
@@ -196,7 +207,7 @@ export class BodiesSchene extends BoxedWorldScene {
     const b = this.worldH - m;
 
     createBodies(
-      15, Vec2.c(m, m), Vec2.c(r, b), [0.1, 0.25]
+      20, Vec2.c(m, m), Vec2.c(r, b), [0.1, 0.2]
     ).forEach((body) => {
       body.restitution = 0.2;
       body.friction = 0.5;
@@ -357,7 +368,7 @@ export class LoopScene2 extends LoopWorldScene {
     createBodies(15, Vec2.c(m, 0), Vec2.c(ww -m, wh), [0.1, 0.15])
       .forEach((body) => {
         body.restitution = 0.5;
-        body.friction = 0.0;
+        body.friction = 0.2;
         this.world.addBody(body);
       });
   }

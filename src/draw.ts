@@ -1,6 +1,6 @@
 import p5 from 'p5';
-import { Vec2 } from './utils';
-import { Polygon } from './shape';
+import { Vec2, Mat2 } from './utils';
+import { Circle, Polygon } from './shape';
 import { RigidBody, Contact, World, PinJoint } from './physics';
 
 export class Draw {
@@ -36,7 +36,17 @@ export class Draw {
     p.strokeWeight(3);
     p.stroke(color);
     p.noFill();
-    this.drawPolygon(p, shape);
+    if (shape instanceof Polygon) {
+      // この分岐はオブジェクト指向の主旨に反しているような気もする
+      this.drawPolygon(p, shape);
+    } else if (shape instanceof Circle) {
+      const c = this.posToPx(shape.center);
+      const r = shape.radius * this.meterToPx;
+      const rot = Mat2.rotate(body.angle);
+      const v = rot.mulvec(Vec2.c(r, 0)).add(c);
+      p.circle(c.x, c.y, r * 2);
+      p.line(c.x, c.y, v.x, v.y);
+    }
 
     p.noStroke();
     p.fill(color);
