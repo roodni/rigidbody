@@ -223,6 +223,7 @@ export class Contact implements Constraint {
     // 前回与えた撃力を打ち消す
     this.body1.addImpulseLocal(r1, this.impulse);
     this.body2.addImpulseLocal(r2, this.impulse.reverse());
+    this.impulse = Vec2.ZERO;
 
     const vel12 = this.body2.velAtLocal(r2).sub(this.body1.velAtLocal(r1));
     const velDiff = this.goalVel - normal.dot(vel12);

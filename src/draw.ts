@@ -46,7 +46,9 @@ export class Draw {
 
     p.colorMode(p.RGB, 255);
     let color = p.color(255, 0, 0);
-    if (contact.isFrictionStatic) {
+    if (contact.impulse.normSq() == 0) {
+      color = p.color(0, 0, 255); // 撃力無しなら青
+    } else if (contact.isFrictionStatic) {
       color = p.color(0, 255, 0); // 静止摩擦なら緑
     }
     p.fill(color);
