@@ -2,8 +2,8 @@ import p5 from 'p5';
 import * as scenes from './scene';
 
 const sceneList: (() => scenes.Scene)[] = [
-  () => new scenes.CollisionScene(),
   () => new scenes.LoopScene2(canvasW),
+  () => new scenes.CollisionScene(),
   () => new scenes.LoopScene1(canvasW),
   () => new scenes.BodiesSchene(canvasW),
   () => new scenes.PendulumScene(canvasW),

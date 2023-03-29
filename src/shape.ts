@@ -1,9 +1,21 @@
 import {Vec2, Mat2} from './utils'
 
-export class Polygon {
+export abstract class Shape {
+  abstract projection(axis: Vec2): [number, number];
+  abstract euclidean(angle: number, trans: Vec2): Shape;
+
+  // 重心・面積・慣性モーメントを計算する
+  abstract center(): {center: Vec2, area: number, inertia: number};
+
+  // abstract collide(s: Shape): Collision;
+  // abstract collidePolygon(poly: Polygon): Collision;
+}
+
+export class Polygon extends Shape {
   vertices: Vec2[]; // 時計回り
   axes: Vec2[];
   constructor(vs: Vec2[]) {
+    super();
     this.vertices = vs;
     this.axes = [];
     for (let i = 0; i < vs.length; i++) {
@@ -28,6 +40,48 @@ export class Polygon {
       max = Math.max(max, p);
     }
     return [min, max];
+  }
+
+  euclidean(angle: number, trans: Vec2) {
+    const rot = Mat2.rotate(angle);
+    const l = this.vertices.map((v) => {
+      return rot.mulvec(v).add(trans);
+    });
+    return new Polygon(l);
+  }
+
+  center() {
+    const v0 = this.vertex(0);
+
+    let subAs = []; // 分割した三角形の面積
+    let subGs = []; // 分割した重心位置
+    let subIs = []; // 分割した慣性モーメント
+    let area = 0;
+    let v0G = Vec2.ZERO;
+
+    for (let i = 0; i < this.vertices.length; i++) {
+      const va = this.vertex(i).sub(v0);
+      const vb = this.vertex(i + 1).sub(v0);
+      const subA = Math.abs(va.cross(vb)) / 2;
+      const subG = va.add(vb).times(1/3);
+      subAs.push(subA);
+      subGs.push(subG);
+      subIs.push(subA/18*(va.normSq() +vb.normSq() -va.dot(vb)));
+      area += subA;
+      v0G = v0G.add(subG.times(subA));
+    }
+    v0G = v0G.times(1/area);
+
+    let inertia = 0;
+    for (let i = 0; i < this.vertices.length; i++) {
+      const d2 = subGs[i].to(v0G).normSq();
+      inertia += subIs[i] +subAs[i]*d2;
+    }
+
+    return {
+      center: v0.add(v0G),
+      area, inertia
+    };
   }
 
   /** 正多角形 */

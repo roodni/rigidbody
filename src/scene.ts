@@ -121,7 +121,7 @@ abstract class WorldScene extends Scene {
     }
 
     const poly = Polygon.rect(...p1.toTuple(), ...p2.toTuple());
-    const body = RigidBody.from_polygon(poly);
+    const body = RigidBody.fromShape(poly);
     this.world.addBody(body);
   }
 }
@@ -153,7 +153,7 @@ export class BoxedWorldScene extends WorldScene {
       Polygon.wall(Vec2.c(r, t), Vec2.c(l, t), m),
       Polygon.wall(Vec2.c(l, t), Vec2.c(l, b), m),
     ].forEach((shape) => {
-      const b = RigidBody.from_polygon(shape);
+      const b = RigidBody.fromShape(shape);
       b.restitution = 0.9;
       b.friction = 1.0;
       b.freeze();
@@ -176,7 +176,7 @@ function createBodies(num: number, lt: Vec2, rb: Vec2, [minR, maxR]=[0.1, 0.2]) 
       radius,
       utils.rand(0, Math.PI * 2)
     );
-    bodies.push(RigidBody.from_polygon(poly));
+    bodies.push(RigidBody.fromShape(poly));
   }
   return bodies;
 }
@@ -226,7 +226,7 @@ export class PendulumScene extends BoxedWorldScene {
       const y1 = wh/3;
 
       const p = Polygon.rect(x1, y1, x1 +rw, y1 +rh);
-      const body = RigidBody.from_polygon(p);
+      const body = RigidBody.fromShape(p);
       this.world.addBody(body);
 
       const pin = PinJoint.pin(prev, body, Vec2.c(x1, y1 +rh/2));
@@ -264,7 +264,7 @@ class LoopWorldScene extends WorldScene {
       Polygon.wall(Vec2.c(r, wh*2), Vec2.c(r, -wh), m),
       Polygon.wall(Vec2.c(r, -wh), Vec2.c(l, -wh), m),
     ].forEach((shape) => {
-      const b = RigidBody.from_polygon(shape);
+      const b = RigidBody.fromShape(shape);
       b.restitution = this.restitution;
       b.friction = this.friction;
       b.freeze();
@@ -299,7 +299,7 @@ export class LoopScene1 extends LoopWorldScene {
 
       Polygon.wall(Vec2.c(ww/4, c), Vec2.c(ww/4*3, c), m),
     ].forEach((shape) => {
-      const b = RigidBody.from_polygon(shape);
+      const b = RigidBody.fromShape(shape);
       b.restitution = this.restitution;
       b.friction = this.friction;
       b.freeze();
@@ -328,10 +328,10 @@ export class LoopScene2 extends LoopWorldScene {
     const r = ww/2 *0.8;
     const w = 0.05;
 
-    const hori = RigidBody.from_polygon(
+    const hori = RigidBody.fromShape(
       Polygon.rect(cx -r, cy -w, cx +r, cy +w)
     );
-    const vert = RigidBody.from_polygon(
+    const vert = RigidBody.fromShape(
       Polygon.rect(cx -w, cy -r, cx +w, cy +r)
     );
     this.world.addBody(hori);
@@ -349,7 +349,7 @@ export class LoopScene2 extends LoopWorldScene {
       Polygon.wall(Vec2.c(0, wh -m*2), Vec2.c(ww/3, wh -m), m),
       Polygon.wall(Vec2.c(ww/3*2, wh -m), Vec2.c(ww, wh -m*2), m)
     ].forEach((shape) => {
-      const body = RigidBody.from_polygon(shape);
+      const body = RigidBody.fromShape(shape);
       body.freeze();
       this.world.addBody(body);
     });

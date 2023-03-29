@@ -1,6 +1,5 @@
 import {Vec2, Mat2} from './utils'
-import {Polygon, Collision} from './shape';
-import { RIGHT } from 'p5';
+import {Polygon, Shape, Collision} from './shape';
 
 export class RigidBody {
   static idPool = 0;
@@ -82,48 +81,21 @@ export class RigidBody {
     if (!this.shape) {
       return undefined;
     }
-    const rotMat = Mat2.rotate(this.angle);
-    const vl = this.shape.vertices.map(
-      (v) => rotMat.mulvec(v).add(this.pos)
-    );
-    return new Polygon(vl);
+    return this.shape.euclidean(this.angle, this.pos);
   }
 
-  /** ワールド座標のポリゴンから重心等を計算してインスタンスを生成する */
-  static from_polygon(poly: Polygon, density = 1.0) {
-    const v0 = poly.vertex(0);
-    function forTriangles(f: (va:Vec2, vb:Vec2, subM:number) => void) {
-      for (let i = 0; i < poly.vertices.length - 1; i++) {
-        const va = poly.vertex(i).sub(v0);
-        const vb = poly.vertex(i + 1).sub(v0);
-        const subM = Math.abs(va.cross(vb)) / 2 * density;
-        f(va, vb, subM);
-      }
-    }
+  /** ワールド座標のポリゴンからインスタンスを生成する */
+  static fromShape(shape: Polygon, density = 1.0) {
+    const {
+      area,
+      inertia: areaInertia,
+      center
+    } = shape.center();
 
-    // 質量・重心を計算
-    let mass = 0;
-    let v0g = Vec2.ZERO;
-    forTriangles((va, vb, subM) => {
-      mass += subM;
-      v0g = v0g.add(va.add(vb).times(subM/3));
-    })
-    v0g = v0g.times(1/mass)
+    const mass = area * density;
+    const inertia = areaInertia * density;
 
-    // 慣性モーメントを計算
-    let inertia = 0;
-    forTriangles((va, vb, subM) => {
-      const subI = subM/18 * (va.normSq() +vb.normSq() -va.dot(vb));
-      const d2 = va.add(vb).times(1/3).to(v0g).normSq();
-      inertia += subI +subM*d2;
-    });
-
-    // ポリゴンを生成
-    const center = v0.add(v0g);
-    const vs = poly.vertices.map((v) => center.to(v))
-    const shape = new Polygon(vs);
-
-    // おわり
+    shape = shape.euclidean(0, center.reverse());
     const body = new RigidBody(shape, mass, inertia);
     body.pos = center;
     return body;
