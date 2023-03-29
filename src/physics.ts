@@ -1,5 +1,6 @@
 import {Vec2, Mat2} from './utils'
 import {Polygon, Collision} from './shape';
+import { RIGHT } from 'p5';
 
 export class RigidBody {
   static idPool = 0;
@@ -136,28 +137,6 @@ export class RigidBody {
 }
 
 
-export type DistanceJoint = {
-  body1: RigidBody;
-  body2: RigidBody;
-  r1: Vec2;
-  r2: Vec2;
-  max: number;
-  noCollide: boolean;
-};
-export const DistanceJoint = {
-  pin(body1: RigidBody, body2: RigidBody, point: Vec2, noCollide=true): DistanceJoint {
-    const rot1 = Mat2.rotate(-body1.angle);
-    const rot2 = Mat2.rotate(-body2.angle);
-    return {
-      body1, body2,
-      r1: rot1.mulvec(body1.pos.to(point)),
-      r2: rot2.mulvec(body2.pos.to(point)),
-      max: 0,
-      noCollide
-    };
-  }
-};
-
 interface Constraint {
   solve(): void;
 }
@@ -263,35 +242,23 @@ export class Contact implements Constraint {
   }
 }
 
-class DistanceConstraint implements Constraint {
-  joint: DistanceJoint;
-  r1: Vec2;
-  r2: Vec2;
-  goalVel?: Vec2;
+class PinConstraint implements Constraint {
+  body1: RigidBody;
+  body2: RigidBody;
+  point: Vec2;
+  goalVel: Vec2;
 
   invMassX: number;
   invMassY: number;
   invMassXY: number;
 
-  constructor(dt: number, joint: DistanceJoint) {
-    this.joint = joint;
-    const b1 = joint.body1;
-    const b2 = joint.body2;
-    const rot1 = Mat2.rotate(b1.angle);
-    const rot2 = Mat2.rotate(b2.angle);
-
-    const p1 = rot1.mulvec(joint.r1).add(b1.pos);
-    const p2 = rot2.mulvec(joint.r2).add(b2.pos);
-    const p12 = p1.to(p2);
-    const center = p1.add(p12.times(0.5));
-    const r1 = this.r1 = b1.pos.to(center);
-    const r2 = this.r2 = b2.pos.to(center);
-
-    const d12 = p12.norm();
-    if (d12 > joint.max) {
-      const vel = -(d12 - joint.max) / dt;
-      this.goalVel = p12.times(vel);
-    }
+  constructor(body1: RigidBody, body2: RigidBody, point: Vec2, goalVel: Vec2) {
+    const b1 = this.body1 = body1;
+    const b2 = this.body2 = body2;
+    this.point = point;
+    this.goalVel = goalVel;
+    const r1 = b1.pos.to(point);
+    const r2 = b2.pos.to(point);
 
     this.invMassX = b1.invMass +b2.invMass +b1.invInertia*r1.y**2 +b2.invInertia*r2.y**2;
     this.invMassY = b1.invMass +b2.invMass +b1.invInertia*r1.x**2 +b2.invInertia*r2.x**2;
@@ -299,20 +266,55 @@ class DistanceConstraint implements Constraint {
   }
 
   solve() {
-    if (!this.goalVel) {
-      return;
-    }
-
-    const vel1 = this.joint.body1.velAtLocal(this.r1);
-    const vel2 = this.joint.body2.velAtLocal(this.r2);
+    const vel1 = this.body1.velAt(this.point);
+    const vel2 = this.body2.velAt(this.point);
     const vel12 = vel2.sub(vel1);
     const velDiff = this.goalVel.sub(vel12);
 
     const ix = Vec2.c(this.invMassY, -this.invMassXY).dot(velDiff);
     const iy = Vec2.c(-this.invMassXY, this.invMassX).dot(velDiff);
     const impulse = Vec2.c(ix, iy).times(1/(this.invMassX*this.invMassY -this.invMassXY**2));
-    this.joint.body1.addImpulseLocal(this.r1, impulse.reverse());
-    this.joint.body2.addImpulseLocal(this.r2, impulse);
+    this.body1.addImpulse(this.point, impulse.reverse());
+    this.body2.addImpulse(this.point, impulse);
+  }
+}
+
+export class PinJoint {
+  constructor(
+    public body1: RigidBody,
+    public body2: RigidBody,
+    public r1: Vec2,
+    public r2: Vec2,
+    public noCollide: boolean
+  ) {}
+
+  pos1() {
+    const rot1 = Mat2.rotate(this.body1.angle);
+    return rot1.mulvec(this.r1).add(this.body1.pos);
+  }
+  pos2() {
+    const rot2 = Mat2.rotate(this.body2.angle);
+    return rot2.mulvec(this.r2).add(this.body2.pos);
+  }
+
+  constraint(dt: number) {
+    const p1 = this.pos1();
+    const p2 = this.pos2();
+    const p12 = p1.to(p2);
+
+    const d12 = p12.norm();
+    const center = p1.add(p12.times(0.5));
+    const goalVel = p12.times(-d12 / dt);
+
+    return new PinConstraint(this.body1, this.body2, center, goalVel);
+  }
+
+  static pin(body1: RigidBody, body2: RigidBody, point: Vec2, noCollide=true) {
+    const rot1 = Mat2.rotate(-body1.angle);
+    const rot2 = Mat2.rotate(-body2.angle);
+    const r1 = rot1.mulvec(body1.pos.to(point));
+    const r2 = rot2.mulvec(body2.pos.to(point));
+    return new PinJoint(body1, body2, r1, r2, noCollide);
   }
 }
 
@@ -321,7 +323,7 @@ export class World {
   gravity = Vec2.c(0, 9.8);
   ether: RigidBody;
   bodies: RigidBody[] = [];
-  joints: DistanceJoint[] = [];
+  joints: PinJoint[] = [];
   contacts: Contact[] = [];
 
   constructor() {
@@ -333,7 +335,7 @@ export class World {
     this.bodies.push(body);
   }
 
-  addJoint(joint: DistanceJoint) {
+  addJoint(joint: PinJoint) {
     this.joints.push(joint);
     // 接続したオブジェクト同士の当たり判定を消す
     if (joint.noCollide) {
@@ -345,6 +347,8 @@ export class World {
   }
 
   step(dt: number) {
+    if (dt <= 0) { return; }
+
     // 重力
     for (const b of this.bodies) {
       b.addForce(b.pos, this.gravity.times(b.mass));
@@ -364,10 +368,8 @@ export class World {
 
     // ジョイント
     for (const joint of this.joints) {
-      // ジョイントに拘束を生成するメソッドを用意した方がいい
-      // ジョイントの種類を増やすことがあれば直す
-      const cnst = new DistanceConstraint(dt, joint);
-      if (cnst.goalVel) {
+      const cnst = joint.constraint(dt);
+      if (cnst) {
         constraints.push(cnst);
       }
     }

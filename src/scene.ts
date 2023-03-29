@@ -1,7 +1,7 @@
 import p5 from 'p5';
 import * as utils from './utils';
 import { Vec2 } from './utils';
-import { DistanceJoint, RigidBody, World } from './physics';
+import { PinJoint, RigidBody, World } from './physics';
 import { Draw } from './draw';
 import { Polygon } from './shape';
 
@@ -143,7 +143,7 @@ export class PendulumScene extends BoxedWorldScene {
       const body = RigidBody.from_polygon(p);
       this.world.addBody(body);
 
-      const pin = DistanceJoint.pin(prev, body, Vec2.c(x1, y1 +rh/2));
+      const pin = PinJoint.pin(prev, body, Vec2.c(x1, y1 +rh/2));
       this.world.addJoint(pin);
 
       prev = body;
@@ -251,9 +251,9 @@ export class LoopScene2 extends LoopWorldScene {
     this.world.addBody(vert);
 
     [
-      DistanceJoint.pin(this.world.ether, hori, Vec2.c(cx, cy)),
-      DistanceJoint.pin(hori, vert, Vec2.c(cx - r, cy)),
-      DistanceJoint.pin(hori, vert, Vec2.c(cx + r, cy)),
+      PinJoint.pin(this.world.ether, hori, Vec2.c(cx, cy)),
+      PinJoint.pin(hori, vert, Vec2.c(cx - r, cy)),
+      PinJoint.pin(hori, vert, Vec2.c(cx + r, cy)),
     ].forEach((joint) => {
       this.world.addJoint(joint);
     });

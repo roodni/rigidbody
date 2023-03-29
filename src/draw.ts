@@ -1,7 +1,7 @@
 import p5 from 'p5';
 import { Vec2 } from './utils';
 import { Polygon } from './shape';
-import { RigidBody, Contact, World, DistanceJoint } from './physics';
+import { RigidBody, Contact, World, PinJoint } from './physics';
 
 export class Draw {
   meterToPx: number;
@@ -37,7 +37,10 @@ export class Draw {
     p.stroke(color);
     p.noFill();
     this.drawPolygon(p, shape);
-    p.circle(...this.posToPx(body.pos).toTuple(), 5);
+
+    p.noStroke();
+    p.fill(color);
+    p.circle(...this.posToPx(body.pos).toTuple(), 8);
   }
 
   drawContact(p: p5, contact: Contact) {
@@ -59,13 +62,23 @@ export class Draw {
     p.circle(...pos2.toTuple(), r);
   }
 
-  drawJoint(p: p5, joint: DistanceJoint) {
+  drawJoint(p: p5, joint: PinJoint) {
+    p.colorMode(p.HSB, 1.0);
+    const color = p.color(0.5, 0.2, 1.0);
+    p.noStroke();
+    p.fill(color);
 
+    const p1 = joint.pos1();
+    const p2 = joint.pos2();
+    p.circle(...this.posToPx(p1.add(p2).times(0.5)).toTuple(), 8)
   }
 
   drawWorld(p: p5, world: World) {
     for (const b of world.bodies) {
       this.drawBody(p, b);
+    }
+    for (const j of world.joints) {
+      this.drawJoint(p, j);
     }
     for (const c of world.contacts) {
       this.drawContact(p, c);
