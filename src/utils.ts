@@ -107,3 +107,10 @@ export function randInt(a: number, b: number) {
 export function rand(a: number, b: number) {
   return a + Math.random() * (b - a);
 }
+
+export function shuffle(a: unknown[]) {
+  for (let i = a.length - 1; i >= 1; i--) {
+    const j = randInt(0, i);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+}

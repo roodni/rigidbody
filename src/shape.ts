@@ -194,22 +194,22 @@ export class Circle extends Shape {
 
 
 export class Collision {
-  normal: Vec2; // 図形1から図形2への方向の衝突法線
-  depth: number;
-  points: [Vec2, Vec2][];
-  constructor(normal: Vec2, depth: number, points: [Vec2, Vec2][]) {
-    this.normal = normal;
-    this.depth = depth;
-    this.points = points;
-  }
+  constructor(
+    public normal: Vec2,  // 図形1から図形2への方向の衝突法線
+    public points: [Vec2, Vec2, number][],
+      // 衝突点と貫通深度
+      // 法線から見て左側から並ぶことが保証される
+  ) {}
 
   /** 図形1と図形2をin-placeで入れ替える */
   reverse() {
     this.normal = this.normal.reverse();
     for (let i = 0; i < this.points.length; i++) {
-      const [p1, p2] = this.points[i];
-      this.points[i] = [p2, p1];
+      const [p1, p2, _] = this.points[i];
+      this.points[i][0] = p2;
+      this.points[i][1] = p1;
     }
+    this.points.reverse();
     return this;
   }
 
@@ -256,17 +256,18 @@ export class Collision {
       }
       if (depth1 < se.depth) {
         // 最も貫通の浅い軸だった
-        return new Collision(normal1, depth1, [
-          [v1, circ2.center.add(normal1.times(-circ2.radius))]
+        return new Collision(normal1, [
+          [v1, circ2.center.add(normal1.times(-circ2.radius)), depth1]
         ]);
       }
     }
     // ポリゴンの辺が最も浅い軸だった
     const normal = poly1.axes[se.axisI];
-    return new Collision(normal, se.depth, [
+    return new Collision(normal, [
       [
         circ2.center.add(normal.times(se.depth -circ2.radius)),
-        circ2.center.add(normal.times(-circ2.radius))
+        circ2.center.add(normal.times(-circ2.radius)),
+        se.depth
       ]
     ]);
   }
@@ -284,10 +285,11 @@ export class Collision {
     } else {
       normal = p12.times(1 / d12);
     }
-    return new Collision(normal, depth, [
+    return new Collision(normal, [
       [
         circ1.center.add(normal.times(circ1.radius)),
-        circ2.center.add(normal.times(-circ2.radius))
+        circ2.center.add(normal.times(-circ2.radius)),
+        depth
       ]
     ]);
   }
@@ -320,35 +322,46 @@ export class Collision {
     vs2.sort((a, b) => a.p - b.p);
 
     // 衝突点を算出する
-    const points: [Vec2, Vec2][] = [];
+    const points: [Vec2, Vec2, number][] = [];
     if (edgePerpPos < vs2[1].p) {
       // 1点衝突
       points.push([
         vs2[0].v.add(normal.times(depth)),
-        vs2[0].v
+        vs2[0].v,
+        depth
       ]);
     } else {
       // 2点衝突
-      const edge = normal.rot270();
+      const edge = normal.rot90();
+      const perpPos2a = vs2[0].p;
+      const perpPos2b = vs2[1].p;
+      const paraPos2a = edge.dot(vs2[0].v);
+      const paraPos2b = edge.dot(vs2[1].v);
       // 衝突候補点を接触面に沿った位置で並べて、内側の2つを取り出す
       const paraPoss = [
-        poly1.vertex(axisI),
-        poly1.vertex(axisI + 1),
-        vs2[0].v,
-        vs2[1].v,
-      ].map((v) => edge.dot(v));
+        edge.dot(poly1.vertex(axisI)),
+        edge.dot(poly1.vertex(axisI + 1)),
+        paraPos2a,
+        paraPos2b,
+      ];
       paraPoss.sort((a, b) => a - b);
       for (const paraPos of [paraPoss[1], paraPoss[2]]) {
-        const v = edge.times(paraPos);
+        // ポリゴン2側の衝突点の算出
+        let perpPos2 = edgePerpPos - depth;
+        if (Math.abs(paraPos2b - paraPos2a) > Number.EPSILON) {
+          perpPos2 = perpPos2a +(perpPos2b -perpPos2a)/(paraPos2b -paraPos2a)*(paraPos -paraPos2a);
+        }
+        const para = edge.times(paraPos);
         points.push([
-          normal.times(edgePerpPos).add(v),
-          normal.times(edgePerpPos -depth).add(v)
+          para.add(normal.times(edgePerpPos)),
+          para.add(normal.times(perpPos2)),
+          edgePerpPos - perpPos2
         ]);
       }
     }
 
     // おわり
-    const col = new Collision(normal, depth, points);
+    const col = new Collision(normal, points);
     if (reversed) {
       col.reverse();
     }

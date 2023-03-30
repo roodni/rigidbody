@@ -46,6 +46,7 @@ export class CollisionScene extends Scene {
     const body2 = RigidBody.fromShape(
       Polygon.regular(4, Vec2.ZERO, 80)
       // new Circle(Vec2.ZERO, 80)
+      // new Polygon([Vec2.ZERO, Vec2.c(120, -40), Vec2.c(40, 40)])
     );
     body2.pos = Vec2.c(p.mouseX, p.mouseY);
     body2.angle = this.angle;
@@ -63,9 +64,12 @@ export class CollisionScene extends Scene {
     if (col) {
       p.colorMode(p.RGB, 255);
       p.stroke(255, 0, 0);
+      p.noFill();
       for (const [p1, p2] of col.points) {
         p.line(p1.x, p1.y, p2.x, p2.y);
       }
+      const [p1, p2] = col.points[0];
+      p.circle(p1.x, p1.y, 5);
     }
   }
 
@@ -254,7 +258,7 @@ function createBodies(num: number, lt: Vec2, rb: Vec2, [minR, maxR]=[0.1, 0.2]) 
 }
 
 
-export class BodiesSchene extends BoxedWorldScene {
+export class BodiesScene extends BoxedWorldScene {
   constructor(canvasW: number) {
     super(canvasW);
   }
@@ -278,6 +282,45 @@ export class BodiesSchene extends BoxedWorldScene {
 
   updateWorld(): void {}
 }
+
+
+export class StackScene extends BoxedWorldScene {
+  count = 0;
+  constructor(canvasW: number) {
+    super(canvasW);
+  }
+
+  init() {
+    super.init();
+
+    // const x1 = this.worldW / 4;
+    // const x2 = this.worldW / 4 * 2;
+    // const h = this.worldH / 10;
+
+    // for (let i = 0; i < 8; i++) {
+    //   const y2 = this.worldW - this.margin - (h * 1.2) * i;
+    //   const rect = Polygon.rect(x1, y2 - h, x2, y2);
+    //   this.world.addBody(
+    //     RigidBody.fromShape(rect)
+    //   );
+    // }
+  }
+
+  updateWorld(): void {
+    if (this.count % 60 == 0 && this.count < 60*8) {
+      const x1 = this.worldW / 4;
+      const x2 = this.worldW / 4 * 2;
+      const h = this.worldH / 10;
+      const rect = Polygon.rect(x1, this.margin, x2, this.margin + h);
+      this.world.addBody(
+        RigidBody.fromShape(rect)
+      );
+    }
+
+    this.count++;
+  }
+}
+
 
 export class PendulumScene extends BoxedWorldScene {
   constructor(canvasW: number) {
