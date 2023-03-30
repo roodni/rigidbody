@@ -60,6 +60,16 @@ export class Vec2 {
     return Vec2.c(this.x/l, this.y/l);
   }
 
+  /** 正規化、ただしゼロベクトルに対して特別な値を返す */
+  safeNormalize<T>(zero: T): Vec2 | T {
+    const l = this.norm();
+    if (l < Number.EPSILON) {
+      return zero;
+    } else {
+      return Vec2.c(this.x/l, this.y/l);
+    }
+  }
+
   toTuple(): [number, number] {
     return [this.x, this.y];
   }

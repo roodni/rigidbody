@@ -1,6 +1,6 @@
 import p5 from 'p5';
 import * as utils from './utils';
-import { Vec2 } from './utils';
+import { Vec2, Mat2 } from './utils';
 import { PinJoint, RigidBody, World } from './physics';
 import { Draw } from './draw';
 import { Polygon, Collision, Circle, Shape } from './shape';
@@ -79,6 +79,9 @@ abstract class WorldScene extends Scene {
   drawer: Draw;
   timestep = 1/60;
 
+  gripRadius = 0.03;
+  grabbing?: {body: RigidBody, loc: Vec2};
+
   startPos = Vec2.ZERO;
 
   constructor(canvasW: number, worldW: number) {
@@ -105,10 +108,27 @@ abstract class WorldScene extends Scene {
     p.background(0);
     this.drawer.drawWorld(p, this.world);
 
-    if (p.mouseIsPressed) {
+    if (p.mouseIsPressed && this.grabbing) {
       p.colorMode(p.RGB, 255);
       p.stroke(255);
-      p.strokeWeight(3);
+      p.noFill();
+      const body = this.grabbing.body;
+      const p1 = this.drawer.pxToPos(Vec2.c(p.mouseX, p.mouseY));
+      const p2 = body.pos.add(Mat2.rotate(body.angle).mulvec(this.grabbing.loc));
+      const v2 = body.velAt(p2);
+      const p21 = p2.to(p1);
+      const dist = p21.norm();
+      const dir = p21.safeNormalize(v2.safeNormalize(Vec2.ZERO));
+      const spring = 9.8 * body.mass * dist / 0.1;
+      body.addForce(p2, dir.times(spring).add(v2.times(-9.8 * body.mass)));
+      p.circle(
+        ...this.drawer.posToPx(p2).toTuple(),
+        this.gripRadius * this.meterToPx * 2
+      );
+      p.line(p.mouseX, p.mouseY, ...this.drawer.posToPx(p2).toTuple());
+    } else if (p.mouseIsPressed && !this.grabbing) {
+      p.colorMode(p.RGB, 255);
+      p.stroke(255);
       p.noFill();
       const p1 = this.startPos;
       const p2 = Vec2.c(p.mouseX, p.mouseY);
@@ -124,10 +144,29 @@ abstract class WorldScene extends Scene {
 
   mousePressed(p: p5): void {
     this.startPos = Vec2.c(p.mouseX, p.mouseY);
+    // 当たり判定
+    this.grabbing = undefined;
+    const pos = this.drawer.pxToPos(this.startPos);
+    const hitShape = new Circle(pos, this.gripRadius);
+    for (let i = 0; i < this.world.shapes.length; i++) {
+      const body = this.world.bodies[i];
+      const shape = this.world.shapes[i];
+      if (!shape || body.frozen) { continue; }
+      if (hitShape.collide(shape)) {
+        const rot = Mat2.rotate(-body.angle);
+        const loc = rot.mulvec(body.pos.to(pos));
+        this.grabbing = {body, loc};
+        break;
+      }
+    }
   }
   mouseReleased(p: p5): void {
-    const p1 = this.startPos.times(1/this.meterToPx);
-    const p2 = Vec2.c(p.mouseX, p.mouseY).times(1/this.meterToPx);
+    if (this.grabbing) {
+      return;
+    }
+
+    const p1 = this.drawer.pxToPos(this.startPos);
+    const p2 = this.drawer.pxToPos(Vec2.c(p.mouseX, p.mouseY));
     const min = 0.05;
 
     let shape;

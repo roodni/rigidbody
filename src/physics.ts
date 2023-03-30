@@ -128,7 +128,8 @@ export class Contact implements Constraint {
 
   isFrictionStatic: boolean;
 
-  constructor(dt: number, gravity: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number) {
+  constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number) {
+    const GRAVITY = 9.8;
     this.body1 = body1;
     this.body2 = body2;
     const normal = this.normal = collision.normal;
@@ -141,11 +142,11 @@ export class Contact implements Constraint {
     const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
     let restitution = body1.restitution * body2.restitution;
     // 相対速度が十分小さいとき反発係数をゼロにする
-    if (Math.abs(vel12) < gravity * dt * restitution * 10) {
+    if (Math.abs(vel12) < GRAVITY * dt * restitution * 10) {
       restitution = 0;
     }
     const velReaction = -restitution * vel12;
-    const slop = gravity * dt * dt * 3;
+    const slop = GRAVITY * dt * dt * 3;
     const velError = Math.min(collision.depth - slop, slop) / dt;
     this.goalVel = Math.max(velReaction, velError);
     // 事前計算
@@ -295,6 +296,7 @@ export class World {
   gravity = Vec2.c(0, 9.8);
   ether: RigidBody;
   bodies: RigidBody[] = [];
+  shapes: (Shape | undefined)[] = [];
   joints: PinJoint[] = [];
   contacts: Contact[] = [];
 
@@ -348,15 +350,14 @@ export class World {
 
     // 衝突検出
     this.contacts = [];
-    const gNorm = Math.sqrt(this.gravity.normSq())
-    const shapes = this.bodies.map((b) => b.movedShape());
+    this.shapes = this.bodies.map((b) => b.movedShape());
     for (let i = 0; i < this.bodies.length; i++) {
       const body1 = this.bodies[i];
-      const shape1 = shapes[i];
+      const shape1 = this.shapes[i];
       if (!shape1) { continue; }
       for (let j = i + 1; j < this.bodies.length; j++) {
         const body2 = this.bodies[j];
-        const shape2 = shapes[j];
+        const shape2 = this.shapes[j];
         if (!shape2) { continue; }
         if (body1.frozen && body2.frozen) { continue; }
         if (body1.noCollide.has(body2.id)) { continue; }
@@ -365,7 +366,7 @@ export class World {
         if (col === undefined) { continue; }
 
         for (let i = 0; i < col.points.length; i++) {
-          const contact = new Contact(dt, gNorm, body1, body2, col, i);
+          const contact = new Contact(dt, body1, body2, col, i);
           constraints.push(contact);
           this.contacts.push(contact);
         }

@@ -14,6 +14,9 @@ export class Draw {
   posToPx(v: Vec2) {
     return this.origin.to(v).times(this.meterToPx);
   }
+  pxToPos(v: Vec2) {
+    return v.times(1 / this.meterToPx).add(this.origin);
+  }
 
   drawPolygon(p: p5, poly: Polygon) {
     p.beginShape();
@@ -33,7 +36,6 @@ export class Draw {
       color = p.color(0.6);
     }
 
-    p.strokeWeight(3);
     p.stroke(color);
     p.noFill();
     if (shape instanceof Polygon) {

@@ -6,6 +6,7 @@ const sketch = (p: p5) => {
   p.setup = () => {
     const cvs = p.createCanvas(config.CANVAS_W, config.CANVAS_H);
     cvs.parent('cvs')
+    p.strokeWeight(2)
   };
 
   p.draw = () => {
