@@ -4,6 +4,7 @@ import { Vec2 } from './utils';
 import { PinJoint, RigidBody, World } from './physics';
 import { Draw } from './draw';
 import { Polygon, Collision, Circle, Shape } from './shape';
+import config from './config';
 
 export abstract class Scene {
   abstract init(): void;
@@ -21,8 +22,8 @@ export class CollisionScene extends Scene {
   constructor() {
     super();
     this.body1 = RigidBody.fromShape(
-      // Polygon.regular(5, Vec2.c(150, 150), 120)
-      new Circle(Vec2.c(150, 150), 100)
+      Polygon.regular(4, Vec2.c(250, 250), 120)
+      // new Circle(Vec2.c(250, 250), 100)
     );
 
     this.angle = 0;
@@ -43,7 +44,8 @@ export class CollisionScene extends Scene {
     }
 
     const body2 = RigidBody.fromShape(
-      Polygon.regular(3, Vec2.ZERO, 80)
+      Polygon.regular(4, Vec2.ZERO, 80)
+      // new Circle(Vec2.ZERO, 80)
     );
     body2.pos = Vec2.c(p.mouseX, p.mouseY);
     body2.angle = this.angle;
@@ -110,7 +112,13 @@ abstract class WorldScene extends Scene {
       p.noFill();
       const p1 = this.startPos;
       const p2 = Vec2.c(p.mouseX, p.mouseY);
-      p.rect(p1.x, p1.y, p2.x -p1.x, p2.y -p1.y);
+      if (config.shapeName === 'rectangle') {
+        p.rect(p1.x, p1.y, p2.x -p1.x, p2.y -p1.y);
+      } else if (config.shapeName === 'circle') {
+        const dia = p1.to(p2).norm();
+        const center = p1.add(p2).times(1/2);
+        p.circle(center.x, center.y, dia);
+      }
     }
   }
 
@@ -120,17 +128,31 @@ abstract class WorldScene extends Scene {
   mouseReleased(p: p5): void {
     const p1 = this.startPos.times(1/this.meterToPx);
     const p2 = Vec2.c(p.mouseX, p.mouseY).times(1/this.meterToPx);
+    const min = 0.05;
 
-    const w = Math.abs(p1.x -p2.x);
-    const h = Math.abs(p1.y -p2.y);
-
-    if (Math.min(w, h) < 0.05) {
-      return;
+    let shape;
+    if (config.shapeName === 'rectangle') {
+      const w = Math.abs(p1.x -p2.x);
+      const h = Math.abs(p1.y -p2.y);
+      if (Math.min(w, h) < min) {
+        return;
+      }
+      shape = Polygon.rect(...p1.toTuple(), ...p2.toTuple());
+    } else if (config.shapeName === 'circle') {
+      const center = p1.add(p2).times(1/2);
+      const r = p1.to(p2).norm() / 2;
+      if (r < min) {
+        return;
+      }
+      shape = new Circle(center, r);
     }
-
-    const poly = Polygon.rect(...p1.toTuple(), ...p2.toTuple());
-    const body = RigidBody.fromShape(poly);
-    this.world.addBody(body);
+    if (shape) {
+      const body = RigidBody.fromShape(shape);
+      if (config.freeze) {
+        body.freeze();
+      }
+      this.world.addBody(body);
+    }
   }
 }
 
