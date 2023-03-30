@@ -78,6 +78,8 @@ export class CollisionScene extends Scene {
 
 // 物理演算
 abstract class WorldScene extends Scene {
+  canvasW: number;
+  canvasH: number;
   world: World;
   meterToPx: number;
   drawer: Draw;
@@ -86,10 +88,12 @@ abstract class WorldScene extends Scene {
   gripRadius = 0.03;
   grabbing?: {body: RigidBody, loc: Vec2};
 
-  startPos = Vec2.ZERO;
+  startPos?: Vec2;
 
-  constructor(canvasW: number, worldW: number) {
+  constructor(canvasW: number, canvasH: number, worldW: number) {
     super();
+    this.canvasW = canvasW;
+    this.canvasH = canvasH;
     this.world = new World();
     this.meterToPx = canvasW / worldW;
     this.drawer = new Draw(this.meterToPx);
@@ -130,7 +134,7 @@ abstract class WorldScene extends Scene {
         this.gripRadius * this.meterToPx * 2
       );
       p.line(p.mouseX, p.mouseY, ...this.drawer.posToPx(p2).toTuple());
-    } else if (p.mouseIsPressed && !this.grabbing) {
+    } else if (p.mouseIsPressed && !this.grabbing && this.startPos) {
       p.colorMode(p.RGB, 255);
       p.stroke(255);
       p.noFill();
@@ -147,7 +151,12 @@ abstract class WorldScene extends Scene {
   }
 
   mousePressed(p: p5): void {
+    if (p.mouseX < 0 || this.canvasW < p.mouseX || p.mouseY < 0 || this.canvasH < p.mouseY) {
+      this.startPos = undefined;
+      return;
+    }
     this.startPos = Vec2.c(p.mouseX, p.mouseY);
+
     // 当たり判定
     this.grabbing = undefined;
     const pos = this.drawer.pxToPos(this.startPos);
@@ -166,6 +175,10 @@ abstract class WorldScene extends Scene {
   }
   mouseReleased(p: p5): void {
     if (this.grabbing) {
+      this.grabbing = undefined;
+      return;
+    }
+    if (!this.startPos) {
       return;
     }
 
@@ -206,8 +219,8 @@ export class BoxedWorldScene extends WorldScene {
   worldH: number;
   margin: number;
 
-  constructor(canvasW: number, w=2.0, h=2.0, m=0.1) {
-    super(canvasW, w);
+  constructor(cvsW: number, cvsH: number, w=2.0, h=2.0, m=0.1) {
+    super(cvsW, cvsH, w);
     this.worldW = w;
     this.worldH = h;
     this.margin = m;
@@ -259,8 +272,8 @@ function createBodies(num: number, lt: Vec2, rb: Vec2, [minR, maxR]=[0.1, 0.2]) 
 
 
 export class BodiesScene extends BoxedWorldScene {
-  constructor(canvasW: number) {
-    super(canvasW);
+  constructor(canvasW: number, canvasH: number) {
+    super(canvasW, canvasH);
   }
 
   init() {
@@ -286,8 +299,8 @@ export class BodiesScene extends BoxedWorldScene {
 
 export class StackScene extends BoxedWorldScene {
   count = 0;
-  constructor(canvasW: number) {
-    super(canvasW);
+  constructor(canvasW: number, canvasH: number) {
+    super(canvasW, canvasH);
   }
 
   init() {
@@ -323,8 +336,8 @@ export class StackScene extends BoxedWorldScene {
 
 
 export class PendulumScene extends BoxedWorldScene {
-  constructor(canvasW: number) {
-    super(canvasW);
+  constructor(canvasW: number, canvasH: number) {
+    super(canvasW, canvasH);
   }
 
   init() {
@@ -361,8 +374,8 @@ class LoopWorldScene extends WorldScene {
   restitution = 1.0;
   friction = 1.0;
 
-  constructor(canvasW: number, w=2.0, h=2.0, m=0.1) {
-    super(canvasW, w);
+  constructor(canvasW: number, canvasH: number, w=2.0, h=2.0, m=0.1) {
+    super(canvasW, canvasH, w);
     this.worldW = w;
     this.worldH = h;
     this.margin = m;

@@ -1,14 +1,14 @@
 import * as scenes from './scene';
 
 
-const sceneList: ((w: number) => scenes.Scene)[] = [
-  (w) => new scenes.LoopScene1(w),
-  (w) => new scenes.LoopScene2(w),
-  (w) => new scenes.StackScene(w),
-  (w) => new scenes.PendulumScene(w),
-  (w) => new scenes.BodiesScene(w),
-  (w) => new scenes.BoxedWorldScene(w),
-  (w) => new scenes.CollisionScene(),
+const sceneList: ((w: number, h: number) => scenes.Scene)[] = [
+  (w, h) => new scenes.LoopScene1(w, h),
+  (w, h) => new scenes.LoopScene2(w, h),
+  (w, h) => new scenes.StackScene(w, h),
+  (w, h) => new scenes.PendulumScene(w, h),
+  (w, h) => new scenes.BodiesScene(w, h),
+  (w, h) => new scenes.BoxedWorldScene(w, h),
+  () => new scenes.CollisionScene(),
 ];
 
 const ShapeName = ['rectangle', 'circle'] as const;
@@ -20,7 +20,7 @@ const config = {
 
   _scene: undefined as (scenes.Scene | undefined),
   setScene(idx: number) {
-    this._scene = sceneList[idx](this.CANVAS_W);
+    this._scene = sceneList[idx](this.CANVAS_W, this.CANVAS_H);
     this._scene.init();
     return this._scene;
   },
