@@ -3,17 +3,36 @@
   <head>
     <meta charset="utf-8">
     <title>Hello Webpack</title>
+    <style>
+      label {
+        user-select: none;
+      }
+    </style>
   </head>
   <body>
     <p>
-      <select id="scene"></select>
-      <button id="reset">reset</button>
+      <div>
+        <select id="scene"></select>
+        <button id="reset">reset</button>
+      </div>
 
-      <span id="shape_name_cntnr"></span>
+      <div>
+        <label>
+          <input type="checkbox" id="freeze">freeze
+        </label>
+        <span id="shape_name_cntnr"></span>
+      </div>
 
-      <label>
-        <input type="checkbox" id="freeze">freeze
-      </label>
+      <div>
+        <label>
+          <input type="range" id="restitution" min="0" max="1" step="0.1">
+          restitution
+        </label><br>
+        <label>
+          <input type="range" id="friction" min="0" max="1" step="0.1">
+          friction
+        </label>
+      </div>
     </p>
     <div id='cvs' style="touch-action: none;"></div>
   </body>

@@ -111,7 +111,7 @@ export class RigidBody {
 
 
 interface Constraint {
-  applyImpuluse(): void;
+  warmStart(): void;
   solve(): void;
 }
 
@@ -131,7 +131,7 @@ export class Contact implements Constraint {
 
   isFrictionStatic: boolean;
 
-  constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number, prevImpulse: Vec2) {
+  constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number, prev?: Contact) {
     const GRAVITY = 9.8;
     this.body1 = body1;
     this.body2 = body2;
@@ -142,7 +142,7 @@ export class Contact implements Constraint {
     const point = point1.add(point2).times(1/2);
     const r1 = this.r1 = body1.pos.to(point);
     const r2 = this.r2 = body2.pos.to(point);
-    this.impulse = prevImpulse;
+    this.impulse = prev?.impulse ?? Vec2.ZERO;
     // 目標となる法線方向の相対速度の算出
     const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
     let restitution = body1.restitution * body2.restitution;
@@ -168,7 +168,7 @@ export class Contact implements Constraint {
     this.isFrictionStatic = true;
   }
 
-  applyImpuluse() {
+  warmStart() {
     this.body1.addImpulseLocal(this.r1, this.impulse.reverse());
     this.body2.addImpulseLocal(this.r2, this.impulse);
   }
@@ -220,6 +220,8 @@ export class Contact implements Constraint {
     }
 
     this.impulse = tangent.times(impulseT).add(normal.times(impulseN));
+    this.body1.addImpulseLocal(this.r1, this.impulse.reverse());
+    this.body2.addImpulseLocal(this.r2, this.impulse);
   }
 }
 
@@ -264,7 +266,7 @@ class PinConstraint implements Constraint {
 
   impulse: Vec2;
 
-  constructor(body1: RigidBody, body2: RigidBody, point: Vec2, goalVel: Vec2, prevImpulse: Vec2) {
+  constructor(body1: RigidBody, body2: RigidBody, point: Vec2, goalVel: Vec2, prev?: PinConstraint) {
     const b1 = this.body1 = body1;
     const b2 = this.body2 = body2;
     this.point = point;
@@ -276,19 +278,15 @@ class PinConstraint implements Constraint {
     this.invMassY = b1.invMass +b2.invMass +b1.invInertia*r1.x**2 +b2.invInertia*r2.x**2;
     this.invMassXY = -b1.invInertia*r1.x*r1.y -b2.invInertia*r2.x*r2.y;
 
-    this.impulse = prevImpulse;
+    this.impulse = prev?.impulse ?? Vec2.ZERO;
   }
 
-  applyImpuluse() {
+  warmStart() {
     this.body1.addImpulse(this.point, this.impulse.reverse());
     this.body2.addImpulse(this.point, this.impulse);
   }
 
   solve() {
-    // 撃力打ち消し
-    this.body1.addImpulse(this.point, this.impulse);
-    this.body2.addImpulse(this.point, this.impulse.reverse());
-
     const vel1 = this.body1.velAt(this.point);
     const vel2 = this.body2.velAt(this.point);
     const vel12 = vel2.sub(vel1);
@@ -296,7 +294,10 @@ class PinConstraint implements Constraint {
 
     const ix = Vec2.c(this.invMassY, -this.invMassXY).dot(velDiff);
     const iy = Vec2.c(-this.invMassXY, this.invMassX).dot(velDiff);
-    this.impulse = Vec2.c(ix, iy).times(1/(this.invMassX*this.invMassY -this.invMassXY**2));
+    const impulse = Vec2.c(ix, iy).times(1/(this.invMassX*this.invMassY -this.invMassXY**2));
+    this.body1.addImpulse(this.point, impulse.reverse());
+    this.body2.addImpulse(this.point, impulse);
+    this.impulse = this.impulse.add(impulse);
   }
 }
 
@@ -329,8 +330,7 @@ export class PinJoint {
     const center = p1.add(p12.times(0.5));
     const goalVel = p12.times(-d12 / dt);
 
-    const prevImpulse = this.constraint?.impulse ?? Vec2.ZERO;
-    this.constraint = new PinConstraint(this.body1, this.body2, center, goalVel, prevImpulse);
+    this.constraint = new PinConstraint(this.body1, this.body2, center, goalVel, this.constraint);
     return this.constraint;
   }
 
@@ -421,8 +421,7 @@ export class World {
 
         const prevContacts = this.contactDict.find(body1.id, body2.id);
         for (let i = 0; i < col.points.length; i++) {
-          const prevImpulse = prevContacts?.at(i)?.impulse ?? Vec2.ZERO;
-          const contact = new Contact(dt, body1, body2, col, i, prevImpulse);
+          const contact = new Contact(dt, body1, body2, col, i, prevContacts?.at(i));
           constraints.push(contact);
           this.contacts.push(contact);
         }
@@ -436,14 +435,12 @@ export class World {
     // 衝突応答
     utils.shuffle(constraints);
     for (const cnst of constraints) {
-      // Warm Start
-      cnst.applyImpuluse();
+      cnst.warmStart();
     }
-    const loop = 50;
+    const loop = 30;
     for (let i = 0; i < loop; i++) {
       for (const cnst of constraints) {
         cnst.solve();
-        cnst.applyImpuluse();
       }
     }
   }

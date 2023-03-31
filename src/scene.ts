@@ -207,6 +207,8 @@ abstract class WorldScene extends Scene {
       if (config.freeze) {
         body.freeze();
       }
+      body.restitution = config.restitution;
+      body.friction = config.friction;
       this.world.addBody(body);
     }
   }
@@ -265,7 +267,10 @@ function createBodies(num: number, lt: Vec2, rb: Vec2, [minR, maxR]=[0.1, 0.2]) 
       const angle = utils.randInt(3, 6);
       shape = Polygon.regular(n, pos, radius, angle);
     }
-    bodies.push(RigidBody.fromShape(shape));
+    const body = RigidBody.fromShape(shape);
+    body.restitution = config.restitution;
+    body.friction = config.friction;
+    bodies.push(body);
   }
   return bodies;
 }
@@ -287,8 +292,6 @@ export class BodiesScene extends BoxedWorldScene {
     createBodies(
       20, Vec2.c(m, m), Vec2.c(r, b), [0.1, 0.2]
     ).forEach((body) => {
-      body.restitution = 0.2;
-      body.friction = 0.5;
       this.world.addBody(body);
     });
   }
@@ -305,18 +308,6 @@ export class StackScene extends BoxedWorldScene {
 
   init() {
     super.init();
-
-    // const x1 = this.worldW / 4;
-    // const x2 = this.worldW / 4 * 2;
-    // const h = this.worldH / 10;
-
-    // for (let i = 0; i < 8; i++) {
-    //   const y2 = this.worldW - this.margin - (h * 1.2) * i;
-    //   const rect = Polygon.rect(x1, y2 - h, x2, y2);
-    //   this.world.addBody(
-    //     RigidBody.fromShape(rect)
-    //   );
-    // }
   }
 
   updateWorld(): void {
@@ -325,9 +316,10 @@ export class StackScene extends BoxedWorldScene {
       const x2 = this.worldW / 4 * 2;
       const h = this.worldH / 10;
       const rect = Polygon.rect(x1, this.margin, x2, this.margin + h);
-      this.world.addBody(
-        RigidBody.fromShape(rect)
-      );
+      const body = RigidBody.fromShape(rect);
+      body.restitution = config.restitution;
+      body.friction = config.friction;
+      this.world.addBody(body);
     }
 
     this.count++;
@@ -371,7 +363,7 @@ class LoopWorldScene extends WorldScene {
   worldW: number;
   worldH: number;
   margin: number;
-  restitution = 1.0;
+  restitution = 0.9;
   friction = 1.0;
 
   constructor(canvasW: number, canvasH: number, w=2.0, h=2.0, m=0.1) {
@@ -412,6 +404,7 @@ class LoopWorldScene extends WorldScene {
 
 export class LoopScene1 extends LoopWorldScene {
   init() {
+
     super.init();
 
     const ww = this.worldW;
@@ -436,8 +429,6 @@ export class LoopScene1 extends LoopWorldScene {
 
     createBodies(20, Vec2.c(m, m), Vec2.c(r, b))
       .forEach((body) => {
-        body.restitution = 0.5;
-        body.friction = 0.3;
         this.world.addBody(body);
       });
   }
@@ -445,6 +436,7 @@ export class LoopScene1 extends LoopWorldScene {
 
 export class LoopScene2 extends LoopWorldScene {
   init() {
+    this.friction = 0.1;
     super.init();
 
     const ww = this.worldW;
@@ -462,6 +454,8 @@ export class LoopScene2 extends LoopWorldScene {
     const vert = RigidBody.fromShape(
       Polygon.rect(cx -w, cy -r, cx +w, cy +r)
     );
+    hori.restitution = vert.restitution = this.restitution;
+    hori.friction = vert.friction = this.friction;
     this.world.addBody(hori);
     this.world.addBody(vert);
 
@@ -479,13 +473,13 @@ export class LoopScene2 extends LoopWorldScene {
     ].forEach((shape) => {
       const body = RigidBody.fromShape(shape);
       body.freeze();
+      body.restitution = this.restitution;
+      body.friction = this.friction;
       this.world.addBody(body);
     });
 
     createBodies(15, Vec2.c(m, 0), Vec2.c(ww -m, wh), [0.1, 0.15])
       .forEach((body) => {
-        body.restitution = 0.5;
-        body.friction = 0.2;
         this.world.addBody(body);
       });
   }

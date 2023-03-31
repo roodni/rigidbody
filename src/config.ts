@@ -2,12 +2,12 @@ import * as scenes from './scene';
 
 
 const sceneList: ((w: number, h: number) => scenes.Scene)[] = [
+  (w, h) => new scenes.BoxedWorldScene(w, h),
   (w, h) => new scenes.LoopScene1(w, h),
   (w, h) => new scenes.LoopScene2(w, h),
+  (w, h) => new scenes.BodiesScene(w, h),
   (w, h) => new scenes.StackScene(w, h),
   (w, h) => new scenes.PendulumScene(w, h),
-  (w, h) => new scenes.BodiesScene(w, h),
-  (w, h) => new scenes.BoxedWorldScene(w, h),
   () => new scenes.CollisionScene(),
 ];
 
@@ -34,6 +34,9 @@ const config = {
 
   shapeName: ShapeName[0] as ShapeName,
   freeze: false,
+
+  restitution: 0.5,
+  friction: 0.5
 };
 export default config;
 
@@ -76,5 +79,18 @@ window.addEventListener('load', () => {
   freezeSel.checked = config.freeze;
   freezeSel.addEventListener('change', () => {
     config.freeze = freezeSel.checked;
+  });
+
+  // 反発係数と摩擦係数
+  const restitutionSel = document.querySelector<HTMLInputElement>('#restitution')!;
+  restitutionSel.valueAsNumber = config.restitution;
+  restitutionSel.addEventListener('change', () => {
+    config.restitution = restitutionSel.valueAsNumber;
+  })
+
+  const frictionSel = document.querySelector<HTMLInputElement>('#friction')!;
+  frictionSel.valueAsNumber = config.friction;
+  frictionSel.addEventListener('change', () => {
+    config.friction = frictionSel.valueAsNumber;
   });
 });

@@ -58,6 +58,7 @@ export class Draw {
   drawContact(p: p5, contact: Contact) {
     const pos1 = this.posToPx(contact.body1.pos.add(contact.r1));
     const pos2 = this.posToPx(contact.body2.pos.add(contact.r2));
+    const point = pos1.add(pos2).times(1/2);
 
     p.colorMode(p.RGB, 255);
     let color = p.color(255, 0, 0);
@@ -69,9 +70,12 @@ export class Draw {
     p.fill(color);
     p.noStroke();
 
-    const r = 8;
-    p.circle(...pos1.toTuple(), r);
-    p.circle(...pos2.toTuple(), r);
+    const r = 6;
+    p.circle(...point.toTuple(), r);
+    // 法線の可視化
+    // p.noFill();
+    // p.stroke(color);
+    // p.line(point.x, point.y, ...point.add(contact.normal.times(r)).toTuple());
   }
 
   drawJoint(p: p5, joint: PinJoint) {
