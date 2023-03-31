@@ -1,8 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "webpack",
-    "build-production": "webpack --mode=production",
+    "build": "webpack --mode=production",
     "start": "webpack serve",
     "test": "npx jest"
   },
