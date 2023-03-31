@@ -26,15 +26,9 @@ export class Draw {
     p.endShape(p.CLOSE);
   }
 
-  drawBody(p: p5, body: RigidBody) {
+  drawBody(p: p5, body: RigidBody, color: p5.Color) {
     const shape = body.movedShape();
     if (!shape) { return; }
-
-    p.colorMode(p.HSB, 1.0);
-    let color = p.color(0.0, 0.2, 1.0);
-    if (body.frozen) {
-      color = p.color(0.6);
-    }
 
     p.stroke(color);
     p.noFill();
@@ -87,17 +81,5 @@ export class Draw {
     const p1 = joint.pos1();
     const p2 = joint.pos2();
     p.circle(...this.posToPx(p1.add(p2).times(0.5)).toTuple(), 8)
-  }
-
-  drawWorld(p: p5, world: World) {
-    for (const b of world.bodies) {
-      this.drawBody(p, b);
-    }
-    for (const j of world.joints) {
-      this.drawJoint(p, j);
-    }
-    for (const c of world.contacts) {
-      this.drawContact(p, c);
-    }
   }
 }

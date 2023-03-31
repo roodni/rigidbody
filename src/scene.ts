@@ -44,7 +44,7 @@ export class CollisionScene extends Scene {
     }
 
     const body2 = RigidBody.fromShape(
-      Polygon.regular(4, Vec2.ZERO, 80)
+      Polygon.regular(5, Vec2.ZERO, 80)
       // new Circle(Vec2.ZERO, 80)
       // new Polygon([Vec2.ZERO, Vec2.c(120, -40), Vec2.c(40, 40)])
     );
@@ -58,8 +58,8 @@ export class CollisionScene extends Scene {
     p.colorMode(p.RGB, 255);
     p.background(0);
 
-    this.drawer.drawBody(p, this.body1);
-    this.drawer.drawBody(p, body2);
+    this.drawer.drawBody(p, this.body1, p.color(col ? 255: 192));
+    this.drawer.drawBody(p, body2, p.color(192));
 
     if (col) {
       p.colorMode(p.RGB, 255);
@@ -90,6 +90,8 @@ abstract class WorldScene extends Scene {
 
   startPos?: Vec2;
 
+  deletionTarget?: RigidBody;
+
   constructor(canvasW: number, canvasH: number, worldW: number) {
     super();
     this.canvasW = canvasW;
@@ -109,13 +111,21 @@ abstract class WorldScene extends Scene {
       }
     }
 
+    // 奈落
+    const yLimit = this.drawer.pxToPos(Vec2.c(0, this.canvasH * 5)).y;
+    for (const b of this.world.bodies) {
+      if (b.pos.y > yLimit) {
+        this.world.deleteBody(b);
+      }
+    }
+
     this.updateWorld();
     this.world.step(this.timestep);
 
     p.colorMode(p.RGB, 255);
     p.background(0);
-    this.drawer.drawWorld(p, this.world);
 
+    // マウス操作
     if (p.mouseIsPressed && this.grabbing) {
       p.colorMode(p.RGB, 255);
       p.stroke(255);
@@ -134,7 +144,9 @@ abstract class WorldScene extends Scene {
         this.gripRadius * this.meterToPx * 2
       );
       p.line(p.mouseX, p.mouseY, ...this.drawer.posToPx(p2).toTuple());
-    } else if (p.mouseIsPressed && !this.grabbing && this.startPos) {
+    }
+
+    if (p.mouseIsPressed && !this.grabbing && this.startPos) {
       p.colorMode(p.RGB, 255);
       p.stroke(255);
       p.noFill();
@@ -148,6 +160,43 @@ abstract class WorldScene extends Scene {
         p.circle(center.x, center.y, dia);
       }
     }
+
+    this.deletionTarget = undefined;
+    if (p.mouseIsPressed && config.shapeName === 'delete' && this.startPos) {
+      const pos = this.drawer.pxToPos(Vec2.c(p.mouseX, p.mouseY));
+      const hitShape = new Circle(pos, this.gripRadius);
+      this.deletionTarget = this.world.findBody(hitShape);
+
+      p.colorMode(p.RGB, 255);
+      const color = p.color(this.deletionTarget ? 255 : 128);
+
+      p.stroke(color);
+      p.noFill();
+      p.line(0, p.mouseY, this.canvasW, p.mouseY);
+      p.line(p.mouseX, 0, p.mouseX, this.canvasH);
+      p.circle(p.mouseX, p.mouseY, this.gripRadius * this.meterToPx * 3);
+    }
+
+    // ワールド描画
+    for (const b of this.world.bodies) {
+      p.colorMode(p.HSB, 1.0);
+      let color = p.color(0.0, 0.2, 1.0);
+      if (b.id === this.deletionTarget?.id) {
+        color = p.color(0, 1.0, 1.0);
+      } else if (b.frozen) {
+        color = p.color(0.6);
+      }
+      this.drawer.drawBody(p, b, color);
+    }
+    for (const j of this.world.joints) {
+      this.drawer.drawJoint(p, j);
+    }
+    for (const c of this.world.contacts) {
+      this.drawer.drawContact(p, c);
+    }
+
+    document.querySelector('#body_count')!.innerHTML = (this.world.bodies.length - 1).toString();
+    document.querySelector('#joint_count')!.innerHTML = this.world.joints.length.toString();
   }
 
   mousePressed(p: p5): void {
@@ -157,31 +206,37 @@ abstract class WorldScene extends Scene {
     }
     this.startPos = Vec2.c(p.mouseX, p.mouseY);
 
-    // 当たり判定
+    // 掴み判定
     this.grabbing = undefined;
+    if (config.shapeName === 'delete') {
+      return;
+    }
     const pos = this.drawer.pxToPos(this.startPos);
     const hitShape = new Circle(pos, this.gripRadius);
-    for (let i = 0; i < this.world.shapes.length; i++) {
-      const body = this.world.bodies[i];
-      const shape = this.world.shapes[i];
-      if (!shape || body.frozen) { continue; }
-      if (hitShape.collide(shape)) {
-        const rot = Mat2.rotate(-body.angle);
-        const loc = rot.mulvec(body.pos.to(pos));
-        this.grabbing = {body, loc};
-        break;
-      }
+    const body = this.world.findBody(hitShape, (b) => !b.frozen);
+    if (body) {
+      const rot = Mat2.rotate(-body.angle);
+      const loc = rot.mulvec(body.pos.to(pos));
+      this.grabbing = {body, loc};
     }
   }
   mouseReleased(p: p5): void {
+    // 消去
+    if (this.deletionTarget) {
+      this.world.deleteBody(this.deletionTarget);
+      return;
+    }
+
+    // 掴み解除
     if (this.grabbing) {
       this.grabbing = undefined;
       return;
     }
+
+    // 生成
     if (!this.startPos) {
       return;
     }
-
     const p1 = this.drawer.pxToPos(this.startPos);
     const p2 = this.drawer.pxToPos(Vec2.c(p.mouseX, p.mouseY));
     const min = 0.05;

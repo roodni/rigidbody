@@ -147,7 +147,7 @@ export class Contact implements Constraint {
     const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
     let restitution = body1.restitution * body2.restitution;
     // 相対速度が十分小さいとき反発係数をゼロにする
-    if (Math.abs(vel12) < GRAVITY * dt * restitution * 10) {
+    if (Math.abs(vel12) < GRAVITY * dt * 5) {
       restitution = 0;
     }
     const velReaction = -restitution * vel12;
@@ -353,6 +353,7 @@ export class World {
   contacts: Contact[] = [];
 
   contactDict = new ContactDictionary();
+  deletionSet = new Set<number>();  // 削除する物体のidを入れる
 
   constructor() {
     this.ether = RigidBody.ether();
@@ -374,7 +375,32 @@ export class World {
     }
   }
 
+  deleteBody(body: RigidBody) {
+    this.deletionSet.add(body.id);
+  }
+
   step(dt: number) {
+    // 削除予約の実行
+    let bodyCount = 0;
+    for (let i = 0; i < this.bodies.length; i++) {
+      const body = this.bodies[i];
+      if (this.deletionSet.has(body.id)) {
+        // 他のbodyのnoCollideから削除した方が良いのだが、面倒なので無視
+        // ジョイント消去も線形探策でいいや
+        for (let j = 0; j < this.joints.length; j++) {
+          const joint = this.joints[j];
+          if (joint.body1 === body || joint.body2 === body) {
+            this.joints[j--] = this.joints[this.joints.length - 1];
+            this.joints.length--;
+          }
+        }
+      } else {
+        this.bodies[bodyCount++] = body;
+      }
+    }
+    this.bodies.length = bodyCount;
+    this.deletionSet.clear();
+
     if (dt <= 0) { return; }
 
     // 重力
@@ -445,4 +471,15 @@ export class World {
     }
   }
 
+  findBody(hitShape: Shape, pred = (b: RigidBody) => true) {
+    for (let i = this.shapes.length - 1; i >= 0; i--) {
+      const body = this.bodies[i];
+      const shape = this.shapes[i];
+      if (!shape || !pred(body)) { continue; }
+      if (hitShape.collide(shape)) {
+        return body;
+      }
+    }
+    return undefined;
+  }
 }
