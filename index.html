@@ -11,19 +11,19 @@
   </head>
   <body>
     <p>
-      <div>
+      <p>
         <select id="scene"></select>
         <button id="reset">reset</button>
-      </div>
+      </p>
 
-      <div>
+      <p>
+        <span id="shape_name_cntnr"></span>
         <label>
           <input type="checkbox" id="freeze">freeze
         </label>
-        <span id="shape_name_cntnr"></span>
-      </div>
+      </p>
 
-      <div>
+      <p>
         <label>
           <input type="range" id="restitution" min="0" max="1" step="0.1">
           restitution
@@ -32,7 +32,7 @@
           <input type="range" id="friction" min="0" max="1" step="0.1">
           friction
         </label>
-      </div>
+      </p>
     </p>
     <div id='cvs' style="touch-action: none;"></div>
     <div style="user-select: none;">

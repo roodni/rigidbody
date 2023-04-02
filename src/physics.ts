@@ -78,6 +78,10 @@ export class RigidBody {
     return this.velAtLocal(r);
   }
 
+  // accAtLocal(r: Vec2) {
+  //   return this.acc.add(r.rot90().times(this.aacc)).add(r.reverse().times(this.avel**2));
+  // }
+
   movedShape() {
     if (!this.shape) {
       return undefined;
@@ -132,7 +136,6 @@ export class Contact implements Constraint {
   isFrictionStatic: boolean;
 
   constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number, prev?: Contact) {
-    const GRAVITY = 9.8;
     this.body1 = body1;
     this.body2 = body2;
     this.pointi = pointi;
@@ -146,14 +149,14 @@ export class Contact implements Constraint {
     // 目標となる法線方向の相対速度の算出
     const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
     let restitution = body1.restitution * body2.restitution;
-    // 相対速度が十分小さいとき反発係数をゼロにする
-    if (Math.abs(vel12) < GRAVITY * dt * 5) {
-      restitution = 0;
-    }
-    const velReaction = -restitution * vel12;
-    const slop = GRAVITY * dt * dt * 3;
+    const acc12 =
+      body2.acc.add(r2.rot90().times(body2.aacc))
+      .sub(body1.acc.add(r1.rot90().times(body1.aacc)));
+    const velAccCorrection = Math.min(0, normal.dot(acc12) * dt);
+    const velReaction = Math.max(0, -restitution*vel12 + velAccCorrection);
+    const slop = 9.8 * dt * dt * 3;
     const velError = Math.min(depth - slop, slop) / dt;
-    this.goalVel = Math.max(velReaction, velError);
+    this.goalVel = Math.max(velReaction, velError, 0);
     // 事前計算
     this.invMassN = body1.invMass + body2.invMass
       + body1.invInertia * r1.cross(normal)**2
@@ -412,10 +415,8 @@ export class World {
     for (const b of this.bodies) {
       b.pos = b.pos.add(b.vel.times(dt));
       b.vel = b.vel.add(b.acc.times(dt));
-      b.acc = Vec2.ZERO;
       b.angle += b.avel * dt;
       b.avel += b.aacc * dt;
-      b.aacc = 0;
     }
 
     const constraints = [];
@@ -468,6 +469,12 @@ export class World {
       for (const cnst of constraints) {
         cnst.solve();
       }
+    }
+
+    // 加速度のクリア
+    for (const b of this.bodies) {
+      b.acc = Vec2.ZERO;
+      b.aacc = 0;
     }
   }
 

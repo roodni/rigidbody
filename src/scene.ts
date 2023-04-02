@@ -107,7 +107,7 @@ abstract class WorldScene extends Scene {
     this.world.gravity = Vec2.c(0, 9.8);
     if (p.keyIsPressed) {
       if (p.key === 'g') {
-        this.world.gravity = Vec2.ZERO;
+        this.world.gravity = Vec2.c(0, 9.8 * 2);
       }
     }
 
