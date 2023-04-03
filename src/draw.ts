@@ -2,6 +2,7 @@ import p5 from 'p5';
 import { Vec2, Mat2 } from './utils';
 import { Circle, Polygon } from './shape';
 import { RigidBody, Contact, World, PinJoint } from './physics';
+import config from './config';
 
 export class Draw {
   meterToPx: number;
@@ -44,9 +45,11 @@ export class Draw {
       p.line(c.x, c.y, v.x, v.y);
     }
 
-    p.noStroke();
-    p.fill(color);
-    p.circle(...this.posToPx(body.pos).toTuple(), 8);
+    if (config.showCenter) {
+      p.noStroke();
+      p.fill(color);
+      p.circle(...this.posToPx(body.pos).toTuple(), 8);
+    }
   }
 
   drawContact(p: p5, contact: Contact) {
@@ -67,9 +70,9 @@ export class Draw {
     const r = 6;
     p.circle(...point.toTuple(), r);
     // 法線の可視化
-    // p.noFill();
-    // p.stroke(color);
-    // p.line(point.x, point.y, ...point.add(contact.normal.times(r)).toTuple());
+    p.noFill();
+    p.stroke(color);
+    p.line(point.x, point.y, ...point.add(contact.normal.times(r)).toTuple());
   }
 
   drawJoint(p: p5, joint: PinJoint) {

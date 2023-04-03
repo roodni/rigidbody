@@ -1,6 +1,9 @@
 import type p5 from 'p5';
 import config from './config';
 
+const LAPTIMES_NUM = 30;
+const laptimes: number[] = [];
+
 (async () => {
   const p5 = (await import('p5')).default;
 
@@ -13,6 +16,16 @@ import config from './config';
 
     p.draw = () => {
       config.scene.update(p);
+
+      const tm = performance.now();
+      if (laptimes.length > LAPTIMES_NUM) {
+        laptimes.shift();
+      }
+      if (laptimes.length >= 1) {
+        const fps = Math.round(laptimes.length / (tm - laptimes[0]) * 1000);
+        document.querySelector('#fps')!.innerHTML = fps.toString();
+      }
+      laptimes.push(tm);
     };
 
     p.mousePressed = () => {

@@ -213,11 +213,6 @@ export class Contact implements Constraint {
       this.isFrictionStatic = false;
       const sign = Math.sign(impulseT);
       const invMass = invMassN +sign*friction*invMassNT;
-      if (invMass <= 0) {
-        // 衝突なし (この分岐、本当に踏むことあるのか？)
-        console.log(sign, invMassNT);
-        return;
-      }
       impulseN = velDiff / invMass;
       impulseT = sign * friction * impulseN;
     }
@@ -347,6 +342,27 @@ export class PinJoint {
 }
 
 
+class Aabb {
+  body: RigidBody;
+  shape: Shape;
+  mins: number[];
+  maxs: number[];
+
+  constructor(body: RigidBody, shape: Shape) {
+    this.body = body;
+    this.shape = shape;
+    const [x1, x2] = shape.projection(Vec2.EX);
+    const [y1, y2] = shape.projection(Vec2.EY);
+    this.mins = [x1, y1];
+    this.maxs = [x2, y2];
+  }
+
+  overlap(axis: number, aabb: Aabb) {
+    return this.mins[axis] <= aabb.maxs[axis] && this.mins[axis] <= aabb.maxs[axis];
+  }
+}
+
+
 export class World {
   gravity = Vec2.c(0, 9.8);
   ether: RigidBody;
@@ -432,28 +448,41 @@ export class World {
     // 衝突検出
     this.contacts = [];
     this.shapes = this.bodies.map((b) => b.movedShape());
+    const aabbs = [];
     for (let i = 0; i < this.bodies.length; i++) {
-      const body1 = this.bodies[i];
-      const shape1 = this.shapes[i];
-      if (!shape1) { continue; }
-      for (let j = i + 1; j < this.bodies.length; j++) {
-        const body2 = this.bodies[j];
-        const shape2 = this.shapes[j];
-        if (!shape2) { continue; }
-        if (body1.frozen && body2.frozen) { continue; }
-        if (body1.noCollide.has(body2.id)) { continue; }
-
-        const col = shape1.collide(shape2);
-        if (col === undefined) { continue; }
-
-        const prevContacts = this.contactDict.find(body1.id, body2.id);
-        for (let i = 0; i < col.points.length; i++) {
-          const contact = new Contact(dt, body1, body2, col, i, prevContacts?.at(i));
-          constraints.push(contact);
-          this.contacts.push(contact);
+      const s = this.shapes[i];
+      if (!s) { continue; }
+      const b = this.bodies[i];
+      aabbs.push(new Aabb(b, s));
+    }
+    const axis = 0;
+    aabbs.sort((a, b) => a.mins[axis] - b.mins[axis]);
+    for (let i = 0; i < aabbs.length; i++) {
+      const aabb1 = aabbs[i];
+      for (let j = i + 1; j < aabbs.length; j++) {
+        const aabb2 = aabbs[j];
+        if (aabb1.maxs[axis] < aabb2.mins[axis]) { break; }
+        let b1 = aabb1.body;
+        let b2 = aabb2.body;
+        if (b1.frozen && b2.frozen) { continue; }
+        if (b1.noCollide.has(b2.id)) { continue; }
+        if (!aabb1.overlap(1 - axis, aabb2)) { continue; }
+        const col = aabb1.shape.collide(aabb2.shape);
+        if (col) {
+          if (b1.id > b2.id) {
+            col.reverse();
+            [b1, b2] = [b2, b1];
+          }
+          const prevContacts = this.contactDict.find(b1.id, b2.id);
+          for (let i = 0; i < col.points.length; i++) {
+            const contact = new Contact(dt, b1, b2, col, i, prevContacts?.at(i));
+            constraints.push(contact);
+            this.contacts.push(contact);
+          }
         }
       }
     }
+
     this.contactDict.clear();
     for (const cont of this.contacts) {
       this.contactDict.add(cont);

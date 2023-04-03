@@ -191,8 +191,10 @@ abstract class WorldScene extends Scene {
     for (const j of this.world.joints) {
       this.drawer.drawJoint(p, j);
     }
-    for (const c of this.world.contacts) {
-      this.drawer.drawContact(p, c);
+    if (config.showCollision) {
+      for (const c of this.world.contacts) {
+        this.drawer.drawContact(p, c);
+      }
     }
 
     document.querySelector('#body_count')!.innerHTML = (this.world.bodies.length - 1).toString();
@@ -352,6 +354,23 @@ export class BodiesScene extends BoxedWorldScene {
   }
 
   updateWorld(): void {}
+}
+
+export class ManyBodiesScene extends BoxedWorldScene {
+  constructor(canvasW: number, canvasH: number) {
+    super(canvasW, canvasH, 8.0, 8.0, 0.5);
+  }
+
+  init() {
+    super.init();
+    const m = this.margin;
+    const r = this.worldW - m;
+    const b = this.worldH - m;
+    createBodies(800, Vec2.c(m, m), Vec2.c(r, b), [0.06, 0.12])
+    .forEach((body) => {
+      this.world.addBody(body);
+    });
+  }
 }
 
 

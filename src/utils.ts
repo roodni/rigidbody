@@ -14,6 +14,8 @@ export class Vec2 {
   }
 
   static ZERO = Vec2.c(0, 0);
+  static EX = Vec2.c(1, 0);
+  static EY = Vec2.c(0, 1);
 
   dot(v: Vec2) {
     return this.x*v.x +this.y*v.y;

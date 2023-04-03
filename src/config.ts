@@ -8,6 +8,7 @@ const sceneList: ((w: number, h: number) => scenes.Scene)[] = [
   (w, h) => new scenes.StackScene(w, h),
   (w, h) => new scenes.BoxedWorldScene(w, h),
   (w, h) => new scenes.PendulumScene(w, h),
+  (w, h) => new scenes.ManyBodiesScene(w, h),
   () => new scenes.CollisionScene(),
 ];
 
@@ -36,7 +37,11 @@ const config = {
   freeze: false,
 
   restitution: 0.5,
-  friction: 0.5
+  friction: 0.5,
+
+  showCenter: false,
+  showCollision: false,
+  // showNormal: false,
 };
 export default config;
 
@@ -74,12 +79,21 @@ window.addEventListener('load', () => {
     shapeNameCntnr.appendChild(lbl);
   }
 
-  // フリーズ
-  const freezeSel = document.querySelector<HTMLInputElement>('#freeze')!;
-  freezeSel.checked = config.freeze;
-  freezeSel.addEventListener('change', () => {
-    config.freeze = freezeSel.checked;
-  });
+  type Filtered<T> = {
+    [U in keyof typeof config]: (typeof config)[U] extends T ? U : never
+  }[keyof typeof config];
+  function checkbox(selector: string, property: Filtered<boolean>) {
+    const sel = document.querySelector<HTMLInputElement>(selector)!;
+    sel.checked = config[property];
+    sel.addEventListener('change', () => {
+      config[property] = sel.checked;
+    });
+  }
+
+  checkbox('#show_center', 'showCenter');
+  checkbox('#show_collision', 'showCollision');
+  // checkbox('#show_normal', 'showNormal');
+  checkbox('#freeze', 'freeze');
 
   // 反発係数と摩擦係数
   const restitutionSel = document.querySelector<HTMLInputElement>('#restitution')!;
