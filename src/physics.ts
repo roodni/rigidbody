@@ -12,9 +12,9 @@ export class RigidBody {
   inertia: number;
   invInertia: number;
   frozen = false;
-  pos = Vec2.ZERO;
-  vel = Vec2.ZERO;
-  acc = Vec2.ZERO;
+  pos = Vec2.zero();
+  vel = Vec2.zero();
+  acc = Vec2.zero();
   angle = 0;
   avel = 0;
   aacc = 0;
@@ -37,8 +37,8 @@ export class RigidBody {
     this.frozen = true;
     this.invMass = 0;
     this.invInertia = 0;
-    this.vel = Vec2.ZERO;
-    this.acc = Vec2.ZERO;
+    this.vel = Vec2.zero();
+    this.acc = Vec2.zero();
   }
   unfreeze() {
     this.frozen = false;
@@ -47,35 +47,44 @@ export class RigidBody {
   }
 
   addForceLocal(r: Vec2, force: Vec2) {
-    if (this.frozen) {
-      return;
-    }
-    this.acc = this.acc.add(force.times(this.invMass));
+    this.acc.addMut(force, this.invMass);
     this.aacc += r.cross(force) * this.invInertia;
   }
   addForce(point: Vec2, force: Vec2) {
     const r = this.pos.to(point);
     this.addForceLocal(r, force);
   }
+
   addImpulseLocal(r: Vec2, impulse: Vec2) {
-    if (this.frozen) {
-      return;
-    }
-    this.vel = this.vel.add(impulse.times(this.invMass));
+    this.vel.addMut(impulse, this.invMass);
     this.avel += r.cross(impulse) * this.invInertia;
   }
-  addImpulse(point: Vec2, impulse: Vec2) {
-    const r = this.pos.to(point);
-    this.addImpulseLocal(r, impulse);
-  }
 
-  velAtLocal(r: Vec2) {
-    const rotVel = r.rot90().times(this.avel);
-    return this.vel.add(rotVel);
+  velAtLocal(r: Vec2, dest?: Vec2) {
+    if (!dest) {
+      dest = Vec2.zero();
+    } else {
+      dest.zero();
+    }
+    r.rotMut90();
+    dest.addMut(this.vel).addMut(r, this.avel);
+    r.rotMut270();
+    return dest;
   }
   velAt(point: Vec2) {
     const r = this.pos.to(point);
     return this.velAtLocal(r);
+  }
+
+  static velRelative(b1: RigidBody, b2: RigidBody, r1: Vec2, r2: Vec2, dest: Vec2) {
+    r1.rotMut90();
+    r2.rotMut90();
+    dest.zero()
+      .addMut(b2.vel).addMut(r2, b2.avel)
+      .subMut(b1.vel).addMut(r1, -b1.avel);
+    r1.rotMut270();
+    r2.rotMut270();
+    return dest;
   }
 
   // accAtLocal(r: Vec2) {
@@ -124,6 +133,7 @@ export class Contact implements Constraint {
   body2: RigidBody;
   pointi: number;
   normal: Vec2;
+  tangent: Vec2;
   r1: Vec2;
   r2: Vec2;
   impulse: Vec2;
@@ -132,6 +142,7 @@ export class Contact implements Constraint {
   invMassN: number;
   invMassT: number;
   invMassNT: number;
+  temp: Vec2;  // 計算領域
 
   isFrictionStatic: boolean;
 
@@ -140,20 +151,45 @@ export class Contact implements Constraint {
     this.body2 = body2;
     this.pointi = pointi;
     const normal = this.normal = collision.normal;
-    const tangent = normal.rot90();
     const [point1, point2, depth] = collision.points[pointi];
-    const point = point1.add(point2).times(1/2);
-    const r1 = this.r1 = body1.pos.to(point);
-    const r2 = this.r2 = body2.pos.to(point);
-    this.impulse = prev?.impulse ?? Vec2.ZERO;
+    if (prev) {
+      // 前回の拘束のVec2を使い回す
+      // prevで指定されたオブジェクトが他のprevにならないという仮定が必要
+      this.impulse = prev.impulse;
+
+      this.tangent = prev.tangent.copyMut(normal).rotMut90();
+      this.r1 = prev.r1.copyMut(point1);
+      this.r2 = prev.r2;
+      this.temp = prev.temp;
+    } else {
+      this.impulse = Vec2.zero();
+
+      this.tangent = normal.rot90();
+      this.r1 = point1.copy();
+      this.r2 = Vec2.zero();
+      this.temp = Vec2.zero();
+    }
+
+    const tangent = this.tangent;
+    this.r1.addMut(point2).timesMut(0.5); // r1はこの時点で中点を指す
+    const r2 = this.r2.copyMut(this.r1).subMut(body2.pos);
+    const r1 = this.r1.subMut(body1.pos);
+
     // 目標となる法線方向の相対速度の算出
-    const vel12 = body2.velAtLocal(r2).sub(body1.velAtLocal(r1)).dot(normal);
+    const vel12 = RigidBody.velRelative(body1, body2, r1, r2, this.temp).dot(normal);
     let restitution = body1.restitution * body2.restitution;
-    const acc12 =
-      body2.acc.add(r2.rot90().times(body2.aacc))
-      .sub(body1.acc.add(r1.rot90().times(body1.aacc)));
+    // const acc12 =
+    //   body2.acc.add(r2.rot90().times(body2.aacc))
+    //   .sub(body1.acc.add(r1.rot90().times(body1.aacc)));
+    r1.rotMut90(); r2.rotMut90();
+    const acc12 = this.temp.zero()
+      .addMut(body2.acc).addMut(r2, body2.aacc)
+      .subMut(body1.acc).addMut(r1, -body1.aacc);
+    r1.rotMut270(); r2.rotMut270();
     const velAccCorrection = Math.min(0, normal.dot(acc12) * dt);
-    const velReaction = Math.max(0, -restitution*vel12 + velAccCorrection);
+    const velReaction = Math.max(
+      0, -restitution*vel12 + velAccCorrection
+    );
     const slop = 9.8 * dt * dt * 3;
     const velError = Math.min(depth - slop, slop) / dt;
     this.goalVel = Math.max(velReaction, velError, 0);
@@ -172,7 +208,9 @@ export class Contact implements Constraint {
   }
 
   warmStart() {
-    this.body1.addImpulseLocal(this.r1, this.impulse.reverse());
+    this.impulse.reverseMut();
+    this.body1.addImpulseLocal(this.r1, this.impulse);
+    this.impulse.reverseMut();
     this.body2.addImpulseLocal(this.r2, this.impulse);
   }
 
@@ -180,17 +218,18 @@ export class Contact implements Constraint {
     const r1 = this.r1;
     const r2 = this.r2;
     const normal = this.normal;
-    const tangent = normal.rot90();
+    const tangent = this.tangent;
     const invMassN = this.invMassN;
     const invMassT = this.invMassT;
     const invMassNT = this.invMassNT;
 
     // 前回与えた撃力を打ち消す
     this.body1.addImpulseLocal(r1, this.impulse);
-    this.body2.addImpulseLocal(r2, this.impulse.reverse());
-    this.impulse = Vec2.ZERO;
+    this.impulse.reverseMut();
+    this.body2.addImpulseLocal(r2, this.impulse);
+    this.impulse.zero();
 
-    const vel12 = this.body2.velAtLocal(r2).sub(this.body1.velAtLocal(r1));
+    const vel12 = RigidBody.velRelative(this.body1, this.body2, r1, r2, this.temp);
     const velDiff = this.goalVel - normal.dot(vel12);
 
     if (velDiff <= 0) {
@@ -217,8 +256,10 @@ export class Contact implements Constraint {
       impulseT = sign * friction * impulseN;
     }
 
-    this.impulse = tangent.times(impulseT).add(normal.times(impulseN));
-    this.body1.addImpulseLocal(this.r1, this.impulse.reverse());
+    this.impulse.addMut(tangent, impulseT).addMut(normal, impulseN);
+    this.impulse.reverseMut();
+    this.body1.addImpulseLocal(this.r1, this.impulse);
+    this.impulse.reverseMut();
     this.body2.addImpulseLocal(this.r2, this.impulse);
   }
 }
@@ -255,7 +296,8 @@ class ContactDictionary {
 class PinConstraint implements Constraint {
   body1: RigidBody;
   body2: RigidBody;
-  point: Vec2;
+  r1: Vec2;
+  r2: Vec2;
   goalVel: Vec2;
 
   invMassX: number;
@@ -263,39 +305,50 @@ class PinConstraint implements Constraint {
   invMassXY: number;
 
   impulse: Vec2;
+  velDiff: Vec2;
 
   constructor(body1: RigidBody, body2: RigidBody, point: Vec2, goalVel: Vec2, prev?: PinConstraint) {
     const b1 = this.body1 = body1;
     const b2 = this.body2 = body2;
-    this.point = point;
     this.goalVel = goalVel;
-    const r1 = b1.pos.to(point);
-    const r2 = b2.pos.to(point);
+    const r1 = this.r1 = b1.pos.to(point);
+    const r2 = this.r2 = b2.pos.to(point);
 
     this.invMassX = b1.invMass +b2.invMass +b1.invInertia*r1.y**2 +b2.invInertia*r2.y**2;
     this.invMassY = b1.invMass +b2.invMass +b1.invInertia*r1.x**2 +b2.invInertia*r2.x**2;
     this.invMassXY = -b1.invInertia*r1.x*r1.y -b2.invInertia*r2.x*r2.y;
 
-    this.impulse = prev?.impulse ?? Vec2.ZERO;
+    this.impulse = prev?.impulse ?? Vec2.zero();
+    this.velDiff = Vec2.zero();
   }
 
   warmStart() {
-    this.body1.addImpulse(this.point, this.impulse.reverse());
-    this.body2.addImpulse(this.point, this.impulse);
+    this.impulse.reverseMut();
+    this.body1.addImpulseLocal(this.r1, this.impulse);
+    this.impulse.reverseMut();
+    this.body2.addImpulseLocal(this.r2, this.impulse);
   }
 
   solve() {
-    const vel1 = this.body1.velAt(this.point);
-    const vel2 = this.body2.velAt(this.point);
-    const vel12 = vel2.sub(vel1);
-    const velDiff = this.goalVel.sub(vel12);
+    RigidBody.velRelative(this.body1, this.body2, this.r1, this.r2, this.velDiff);
+    const velDiff = this.velDiff.reverseMut().addMut(this.goalVel);
 
-    const ix = Vec2.c(this.invMassY, -this.invMassXY).dot(velDiff);
-    const iy = Vec2.c(-this.invMassXY, this.invMassX).dot(velDiff);
-    const impulse = Vec2.c(ix, iy).times(1/(this.invMassX*this.invMassY -this.invMassXY**2));
-    this.body1.addImpulse(this.point, impulse.reverse());
-    this.body2.addImpulse(this.point, impulse);
-    this.impulse = this.impulse.add(impulse);
+    // 以前の撃力のバックアップ
+    const ix = this.impulse.x;
+    const iy = this.impulse.y;
+
+
+    const impulse = this.impulse;
+    impulse.x =  this.invMassY*velDiff.x -this.invMassXY*velDiff.y;
+    impulse.y = -this.invMassXY*velDiff.x +this.invMassX*velDiff.y;
+    impulse.timesMut(1 / (this.invMassX*this.invMassY -this.invMassXY**2))
+
+    impulse.reverseMut();
+    this.body1.addImpulseLocal(this.r1, impulse);
+    impulse.reverseMut();
+    this.body2.addImpulseLocal(this.r2, impulse);
+    impulse.x += ix;
+    impulse.y += iy;
   }
 }
 
@@ -351,8 +404,8 @@ class Aabb {
   constructor(body: RigidBody, shape: Shape) {
     this.body = body;
     this.shape = shape;
-    const [x1, x2] = shape.projection(Vec2.EX);
-    const [y1, y2] = shape.projection(Vec2.EY);
+    const [x1, x2] = shape.projection(Vec2.c(1, 0));
+    const [y1, y2] = shape.projection(Vec2.c(0, 1));
     this.mins = [x1, y1];
     this.maxs = [x2, y2];
   }
@@ -502,7 +555,7 @@ export class World {
 
     // 加速度のクリア
     for (const b of this.bodies) {
-      b.acc = Vec2.ZERO;
+      b.acc = Vec2.zero();
       b.aacc = 0;
     }
   }

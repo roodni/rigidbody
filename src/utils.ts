@@ -1,53 +1,45 @@
 export class Vec2 {
-  readonly x: number;
-  readonly y: number;
+  x: number;
+  y: number;
 
-  constructor(x: number, y: number) {
-    if (!isFinite(x) || !isFinite(y)) {
-      throw new Error('not finite');
-    }
+  private constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
   }
   static c(x: number, y: number) {
+    if (!isFinite(x) || !isFinite(y)) {
+      throw new Error('not finite');
+    }
     return new Vec2(x, y);
   }
+  static zero() {
+    return new Vec2(0, 0);
+  }
 
-  static ZERO = Vec2.c(0, 0);
-  static EX = Vec2.c(1, 0);
-  static EY = Vec2.c(0, 1);
+  copy() {
+    return new Vec2(this.x, this.y);
+  }
+  copyMut(v: Vec2) {
+    this.x = v.x;
+    this.y = v.y;
+    return this;
+  }
+
+  update(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+  zero() {
+    this.x = 0;
+    this.y = 0;
+    return this;
+  }
 
   dot(v: Vec2) {
     return this.x*v.x +this.y*v.y;
   }
-
   cross(v: Vec2) {
-    return this.x*v.y - this.y*v.x;
-  }
-
-  reverse() {
-    return Vec2.c(-this.x, -this.y);
-  }
-
-  times(a: number) {
-    return Vec2.c(this.x*a, this.y*a);
-  }
-
-  add(v: Vec2) {
-    return Vec2.c(this.x +v.x, this.y +v.y);
-  }
-  sub(v: Vec2) {
-    return Vec2.c(this.x -v.x, this.y -v.y);
-  }
-  to(dest: Vec2) {
-    return dest.sub(this);
-  }
-
-  rot90() {
-    return Vec2.c(-this.y, this.x);
-  }
-  rot270() {
-    return Vec2.c(this.y, -this.x);
+    return this.x*v.y -this.y*v.x;
   }
 
   normSq() {
@@ -70,6 +62,65 @@ export class Vec2 {
     } else {
       return Vec2.c(this.x/l, this.y/l);
     }
+  }
+
+  rot90() {
+    return new Vec2(-this.y, this.x);
+  }
+  rotMut90() {
+    const x = this.x;
+    this.x = -this.y;
+    this.y = x;
+    return this;
+  }
+
+  rot270() {
+    return new Vec2(this.y, -this.x);
+  }
+  rotMut270() {
+    const x = this.x;
+    this.x = this.y;
+    this.y = -x;
+    return this;
+  }
+
+  reverse() {
+    return Vec2.c(-this.x, -this.y);
+  }
+  reverseMut() {
+    this.x = -this.x;
+    this.y = -this.y;
+    return this;
+  }
+
+  times(a: number) {
+    return Vec2.c(this.x*a, this.y*a);
+  }
+  timesMut(a: number) {
+    this.x *= a;
+    this.y *= a;
+    return this;
+  }
+
+  add(v: Vec2) {
+    return Vec2.c(this.x +v.x, this.y +v.y);
+  }
+  addMut(v: Vec2, scale = 1) {
+    this.x += v.x * scale;
+    this.y += v.y * scale;
+    return this;
+  }
+
+  sub(v: Vec2) {
+    return Vec2.c(this.x -v.x, this.y -v.y);
+  }
+  subMut(v: Vec2) {
+    this.x -= v.x;
+    this.y -= v.y;
+    return this;
+  }
+  to(dest: Vec2) {
+    return dest.sub(this);
   }
 
   toTuple(): [number, number] {

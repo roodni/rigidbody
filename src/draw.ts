@@ -7,7 +7,7 @@ import config from './config';
 export class Draw {
   meterToPx: number;
   origin: Vec2;
-  constructor(meterToPx: number, origin=Vec2.ZERO) {
+  constructor(meterToPx: number, origin=Vec2.zero()) {
     this.meterToPx = meterToPx;
     this.origin = origin;
   }

@@ -2,13 +2,13 @@ import * as scenes from './scene';
 
 
 const sceneList: ((w: number, h: number) => scenes.Scene)[] = [
+  (w, h) => new scenes.ManyBodiesScene(w, h),
   (w, h) => new scenes.LoopScene1(w, h),
   (w, h) => new scenes.LoopScene2(w, h),
   (w, h) => new scenes.BodiesScene(w, h),
   (w, h) => new scenes.StackScene(w, h),
   (w, h) => new scenes.BoxedWorldScene(w, h),
   (w, h) => new scenes.PendulumScene(w, h),
-  (w, h) => new scenes.ManyBodiesScene(w, h),
   () => new scenes.CollisionScene(),
 ];
 

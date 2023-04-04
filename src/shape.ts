@@ -65,7 +65,7 @@ export class Polygon extends Shape {
     let subGs = []; // 分割した重心位置
     let subIs = []; // 分割した慣性モーメント
     let area = 0;
-    let v0G = Vec2.ZERO;
+    let v0G = Vec2.zero();
 
     for (let i = 0; i < this.vertices.length; i++) {
       const va = this.vertex(i).sub(v0);

@@ -44,9 +44,9 @@ export class CollisionScene extends Scene {
     }
 
     const body2 = RigidBody.fromShape(
-      Polygon.regular(5, Vec2.ZERO, 80)
-      // new Circle(Vec2.ZERO, 80)
-      // new Polygon([Vec2.ZERO, Vec2.c(120, -40), Vec2.c(40, 40)])
+      Polygon.regular(5, Vec2.zero(), 80)
+      // new Circle(Vec2.zero(), 80)
+      // new Polygon([Vec2.zero(), Vec2.c(120, -40), Vec2.c(40, 40)])
     );
     body2.pos = Vec2.c(p.mouseX, p.mouseY);
     body2.angle = this.angle;
@@ -136,7 +136,7 @@ abstract class WorldScene extends Scene {
       const v2 = body.velAt(p2);
       const p21 = p2.to(p1);
       const dist = p21.norm();
-      const dir = p21.safeNormalize(v2.safeNormalize(Vec2.ZERO));
+      const dir = p21.safeNormalize(v2.safeNormalize(Vec2.zero()));
       const spring = 9.8 * body.mass * dist / 0.1;
       body.addForce(p2, dir.times(spring).add(v2.times(-9.8 * body.mass)));
       p.circle(
@@ -358,7 +358,7 @@ export class BodiesScene extends BoxedWorldScene {
 
 export class ManyBodiesScene extends BoxedWorldScene {
   constructor(canvasW: number, canvasH: number) {
-    super(canvasW, canvasH, 8.0, 8.0, 0.5);
+    super(canvasW, canvasH, 10.0, 10.0, 1);
   }
 
   init() {
@@ -366,7 +366,7 @@ export class ManyBodiesScene extends BoxedWorldScene {
     const m = this.margin;
     const r = this.worldW - m;
     const b = this.worldH - m;
-    createBodies(800, Vec2.c(m, m), Vec2.c(r, b), [0.06, 0.12])
+    createBodies(1200, Vec2.c(m, m), Vec2.c(r, b), [0.06, 0.12])
     .forEach((body) => {
       this.world.addBody(body);
     });
