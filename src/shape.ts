@@ -326,7 +326,7 @@ export class Collision {
     if (edgePerpPos < vs2[1].p) {
       // 1点衝突
       points.push([
-        vs2[0].v.add(normal.times(depth)),
+        vs2[0].v.linear(normal, depth),
         vs2[0].v,
         depth
       ]);
@@ -353,8 +353,8 @@ export class Collision {
         }
         const para = edge.times(paraPos);
         points.push([
-          para.add(normal.times(edgePerpPos)),
-          para.add(normal.times(perpPos2)),
+          para.linear(normal, edgePerpPos),
+          para.linear(normal, perpPos2),
           edgePerpPos - perpPos2
         ]);
       }

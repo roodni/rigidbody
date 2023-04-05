@@ -1,7 +1,7 @@
 import type p5 from 'p5';
 import config from './config';
 
-const LAPTIMES_NUM = 30;
+const LAPTIMES_NUM = 60;
 const laptimes: number[] = [];
 
 (async () => {

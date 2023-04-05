@@ -111,6 +111,12 @@ export class Vec2 {
     return this;
   }
 
+  linear(v: Vec2, a: number) {
+    return Vec2.c(
+      this.x + v.x * a,
+      this.y + v.y * a
+    );
+  }
   linearMut(v: Vec2, a: number) {
     this.x += v.x * a;
     this.y += v.y * a;

@@ -130,50 +130,37 @@ export class Contact implements Constraint {
   body1: RigidBody;
   body2: RigidBody;
   pointi: number;
-  normal: Vec2;
-  tangent: Vec2;
-  r1: Vec2;
-  r2: Vec2;
-  impulse: Vec2;
-  goalVel: number;
+  normal = Vec2.zero();
+  tangent = Vec2.zero();
+  r1 = Vec2.zero();
+  r2 = Vec2.zero();
+  impulse = Vec2.zero();
+  goalVel = 0;
 
-  invMassN: number;
-  invMassT: number;
-  invMassNT: number;
-  temp: Vec2;  // 計算領域
+  invMassN = 0;
+  invMassT = 0;
+  invMassNT = 0;
+  temp = Vec2.zero();
 
-  isFrictionStatic: boolean;
+  isFrictionStatic = false;
 
-  constructor(dt: number, body1: RigidBody, body2: RigidBody, collision: Collision, pointi: number, prev?: Contact) {
+  constructor(body1: RigidBody, body2: RigidBody, pointi: number) {
     this.body1 = body1;
     this.body2 = body2;
     this.pointi = pointi;
-    const normal = this.normal = collision.normal;
-    const [point1, point2, depth] = collision.points[pointi];
-    if (prev) {
-      // 前回の拘束のVec2を使い回す
-      // prevで指定されたオブジェクトが他のprevにならないという仮定が必要
-      this.impulse = prev.impulse;
+  }
 
-      this.tangent = prev.tangent.copyMut(normal).rotMut90();
-      this.r1 = prev.r1.copyMut(point1);
-      this.r2 = prev.r2;
-      this.temp = prev.temp;
-    } else {
-      this.impulse = Vec2.zero();
+  update(dt: number, collision: Collision) {
+    const [point1, point2, depth] = collision.points[this.pointi];
+    const normal = this.normal.copyMut(collision.normal);
+    const tangent = this.tangent.copyMut(collision.normal).rotMut90();
 
-      this.tangent = normal.rot90();
-      this.r1 = point1.copy();
-      this.r2 = Vec2.zero();
-      this.temp = Vec2.zero();
-    }
-
-    const tangent = this.tangent;
-    this.r1.addMut(point2).timesMut(0.5); // r1はこの時点で中点を指す
+    const body1 = this.body1;
+    const body2 = this.body2;
+    this.r1.copyMut(point1).addMut(point2).timesMut(0.5); // 中点
     const r2 = this.r2.copyMut(this.r1).subMut(body2.pos);
     const r1 = this.r1.subMut(body1.pos);
 
-    // 目標となる法線方向の相対速度の算出
     const vel12 = RigidBody.velRelative(body1, body2, r1, r2, this.temp).dot(normal);
     let restitution = body1.restitution * body2.restitution;
     const acc12 = this.temp.zero()
@@ -196,8 +183,6 @@ export class Contact implements Constraint {
     this.invMassNT =
         body1.invInertia * r1.cross(normal) * r1.cross(tangent)
       + body2.invInertia * r2.cross(normal) * r2.cross(tangent);
-
-    this.isFrictionStatic = true;
   }
 
   warmStart() {
@@ -518,7 +503,11 @@ export class World {
           }
           const prevContacts = this.contactDict.find(b1.id, b2.id);
           for (let i = 0; i < col.points.length; i++) {
-            const contact = new Contact(dt, b1, b2, col, i, prevContacts?.at(i));
+            let contact = prevContacts?.at(i);
+            if (!contact) {
+              contact = new Contact(b1, b2, i);
+            }
+            contact.update(dt, col);
             constraints.push(contact);
             this.contacts.push(contact);
           }
