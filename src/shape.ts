@@ -42,8 +42,8 @@ export class Polygon extends Shape {
   projection(axis: Vec2): [number, number] {
     let min = Infinity;
     let max = -Infinity;
-    for (const v of this.vertices) {
-      const p = axis.dot(v);
+    for (let i = 0; i < this.vertices.length; i++) {
+      const p = axis.dot(this.vertices[i]);
       min = Math.min(min, p);
       max = Math.max(max, p);
     }

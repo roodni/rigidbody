@@ -105,9 +105,20 @@ export class Vec2 {
   add(v: Vec2) {
     return Vec2.c(this.x +v.x, this.y +v.y);
   }
-  addMut(v: Vec2, scale = 1) {
-    this.x += v.x * scale;
-    this.y += v.y * scale;
+  addMut(v: Vec2) {
+    this.x += v.x;
+    this.y += v.y;
+    return this;
+  }
+
+  linearMut(v: Vec2, a: number) {
+    this.x += v.x * a;
+    this.y += v.y * a;
+    return this;
+  }
+  addRot90Mut(v: Vec2, a: number) {
+    this.x += -v.y * a;
+    this.y += v.x * a;
     return this;
   }
 

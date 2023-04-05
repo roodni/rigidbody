@@ -366,7 +366,7 @@ export class ManyBodiesScene extends BoxedWorldScene {
     const m = this.margin;
     const r = this.worldW - m;
     const b = this.worldH - m;
-    createBodies(1200, Vec2.c(m, m), Vec2.c(r, b), [0.06, 0.12])
+    createBodies(1000, Vec2.c(m, m), Vec2.c(r, b), [0.06, 0.12])
     .forEach((body) => {
       this.world.addBody(body);
     });
