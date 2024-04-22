@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8">
-    <title>Hello Webpack</title>
+    <title>手書きの剛体シミュレーション</title>
     <style>
       label {
         user-select: none;
@@ -12,14 +12,14 @@
   <body>
     <p>
       <fieldset>
-        <legend>Drawing</legend>
+        <legend>描画</legend>
         <label>
           <input type="checkbox" id="show_center">
-          center
+          重心
         </label>
         <label>
           <input type="checkbox" id="show_collision">
-          collision
+          接触
         </label>
         <!-- <label>
           <input type="checkbox" id="show_normal">
@@ -28,28 +28,28 @@
       </fieldset>
 
       <fieldset>
-        <legend>Scene</legend>
+        <legend>シーン</legend>
         <select id="scene"></select>
         <button id="reset">reset</button>
       </fieldset>
 
       <fieldset>
-        <legend>Creation</legend>
+        <legend>生成</legend>
         <div>
           <span id="shape_name_cntnr"></span>
           <label>
-            <input type="checkbox" id="freeze">freeze
+            <input type="checkbox" id="freeze">固定
           </label>
         </div>
         <hr>
         <div>
           <label>
             <input type="range" id="restitution" min="0" max="1" step="0.1">
-            restitution
+            反発
           </label><br>
           <label>
             <input type="range" id="friction" min="0" max="1" step="0.1">
-            friction
+            摩擦
           </label>
         </div>
       </fieldset>
